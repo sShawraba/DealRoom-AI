@@ -40,7 +40,23 @@
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-[Gates determined based on constitution file]
+Verify this feature does not violate any DealRoom AI Core Principle:
+
+- [ ] **I. Multi-Tenant Security**: All DB queries scope to `tenant_id`. Deal room and
+  document access gated via `deal_room_members` / `document_permissions`. Every
+  state-changing endpoint calls `log_event()`. Long tasks use ARQ (not BackgroundTasks).
+  No secrets in code. Files stored in MinIO. Document downloads watermarked.
+- [ ] **II. Code Quality**: Type hints and Pydantic I/O everywhere. Repository pattern
+  for all DB access. Thin routers only. Docstrings on all public functions. Tests cover
+  auth, tenant isolation, agent outputs, ML endpoint, and approval gate.
+- [ ] **III. Platform Architecture**: Routes under `/api/v1/`. Pagination on all list
+  endpoints. `structlog` for structured logging. Sentry captures unhandled exceptions.
+  `slowapi` rate limiting on public endpoints. Env vars validated at startup.
+- [ ] **IV. Product & UX Standards**: Empty states on all list views. Loading indicators
+  for async operations. Human-readable errors only. Approved reports are read-only at the
+  repository layer. Approval gate enforced at API layer. Export only for approved reports.
+
+> Violations MUST be resolved or explicitly justified in the Complexity Tracking table.
 
 ## Project Structure
 

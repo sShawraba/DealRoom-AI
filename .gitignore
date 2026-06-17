@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+dist/
+build/
+*.egg-info/
+.eggs/
+*.so
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Environment / secrets
+.env
+*.env.local
+*.env.production
+
+# Node / Frontend
+node_modules/
+frontend/dist/
+frontend/build/
+*.log
+
+# ML artefacts
+ml/artifacts/
+backend/ml/artifacts/
+
+# Docker
+*.dockerignore
+
+# macOS / editors
+.DS_Store
+Thumbs.db
+*.swp
+*.tmp
+.vscode/
+.idea/
+
+# Alembic
+backend/migrations/__pycache__/
+backend/migrations/versions/__pycache__/
+
+# Uploads
+backend/uploads/

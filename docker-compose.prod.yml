@@ -1,0 +1,65 @@
+version: "3.9"
+
+# Production overrides — no volume bind mounts, restart policies, resource limits
+services:
+  db:
+    restart: always
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+
+  redis:
+    restart: always
+    volumes:
+      - redis_data:/data
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+
+  minio:
+    restart: always
+    volumes:
+      - minio_data:/data
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+
+  vault:
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+
+  backend:
+    restart: always
+    volumes: []
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+
+  worker:
+    restart: always
+    volumes: []
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+
+  frontend:
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+
+volumes:
+  db_data:
+  redis_data:
+  minio_data:
