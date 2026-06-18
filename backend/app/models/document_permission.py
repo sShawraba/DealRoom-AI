@@ -1,4 +1,4 @@
-"""DocumentPermission — stub for Phase 1. Enforcement added in Phase 2."""
+"""DocumentPermission — per-user or per-role access grants for a document."""
 import uuid
 from datetime import datetime
 
@@ -10,9 +10,6 @@ from app.core.database import Base
 
 class DocumentPermission(Base):
     __tablename__ = "document_permissions"
-    __table_args__ = (
-        sa.UniqueConstraint("document_id", "user_id", name="uq_doc_permission"),
-    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         sa.UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -23,11 +20,12 @@ class DocumentPermission(Base):
     document_id: Mapped[uuid.UUID] = mapped_column(
         sa.UUID(as_uuid=True), nullable=False, index=True
     )
-    user_id: Mapped[uuid.UUID] = mapped_column(
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
         sa.UUID(as_uuid=True),
         sa.ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,
     )
+    role: Mapped[str | None] = mapped_column(sa.String(50), nullable=True)
     can_view: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=True)
     can_download: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
     granted_by: Mapped[uuid.UUID | None] = mapped_column(

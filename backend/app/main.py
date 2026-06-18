@@ -120,9 +120,14 @@ def create_app() -> FastAPI:
     from app.routers.annotations import _annotation_router as annotations_router
     from app.routers.management_qa import router as management_qa_router
     from app.routers.management_qa import _mq_router as management_question_router
+    from app.routers.comparison import router as comparison_router
+    from app.routers.permissions import router as permissions_router
     app.include_router(health_router)
     app.include_router(admin_router)
     app.include_router(auth_router)
+    # comparison must come before deal_rooms so /compare and /search
+    # are matched before the /{room_id} wildcard in deal_rooms
+    app.include_router(comparison_router)
     app.include_router(deal_rooms_router)
     app.include_router(documents_router)
     app.include_router(jobs_router)
@@ -133,6 +138,7 @@ def create_app() -> FastAPI:
     app.include_router(annotations_router)
     app.include_router(management_qa_router)
     app.include_router(management_question_router)
+    app.include_router(permissions_router)
 
     return app
 

@@ -25,6 +25,19 @@ class ReportRepository(BaseTenantRepository[Report]):
     async def get_with_items(self, report_id: uuid.UUID) -> Report | None:
         return await self.get_by_id(report_id)
 
+    async def get_latest_approved(self, deal_room_id: uuid.UUID) -> Report | None:
+        result = await self.session.execute(
+            select(Report)
+            .where(
+                Report.tenant_id == self.tenant_id,
+                Report.deal_room_id == deal_room_id,
+                Report.status == "approved",
+            )
+            .order_by(Report.created_at.desc())
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
+
 
 class ReportItemRepository:
     def __init__(self, session: AsyncSession) -> None:
