@@ -55,3 +55,5 @@ backend/uploads/
 
 # Claude Code (local settings only)
 .claude/
+.specify/
+.claude/
