@@ -32,6 +32,11 @@ class AuditAction:
     ANNOTATION_CREATED = "annotation.created"
     ANNOTATION_DISPUTED = "annotation.disputed"
     ANNOTATION_RESOLVED = "annotation.resolved"
+    REPORT_ITEM_EDITED = "report.item_edited"
+    REPORT_EXPORTED = "report.exported"
+    QA_GENERATED = "qa.generated"
+    QA_EMAIL_SENT = "qa.email_sent"
+    GUARDRAIL_CONTENT_FLAGGED = "guardrail.content_flagged"
 
 
 async def log_event(

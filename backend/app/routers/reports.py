@@ -1,7 +1,8 @@
-"""Report creation, listing, and detail endpoints."""
+"""Report creation, listing, detail, item edit and approval status endpoints."""
 from __future__ import annotations
 
 import uuid
+from datetime import datetime, timezone
 
 import structlog
 from fastapi import APIRouter, HTTPException, Request, status
@@ -9,13 +10,20 @@ from sqlalchemy import select
 
 from app.core.audit import AuditAction, log_event
 from app.core.deps import CurrentUserDep, SessionDep
+from app.core.guardrails import moderate_content
 from app.core.redis import get_arq_pool
 from app.models.document import Document
-from app.models.report import Report
+from app.models.report import Report, ReportItem
 from app.repositories.deal_room import DealRoomRepository
 from app.repositories.report import ReportItemRepository, ReportRepository
 from app.schemas.pagination import PaginatedResponse
-from app.schemas.report import ReportResponse, ReportSummary
+from app.schemas.report import (
+    ReportItemEditBody,
+    ReportItemResponse,
+    ReportResponse,
+    ReportStatusBody,
+    ReportSummary,
+)
 
 log = structlog.get_logger(__name__)
 
@@ -152,7 +160,6 @@ async def get_report(
     item_repo = ReportItemRepository(session)
     items = await item_repo.get_items_for_report(report_id)
 
-    from app.schemas.report import ReportItemResponse
     return ReportResponse(
         id=report.id,
         deal_room_id=report.deal_room_id,
@@ -169,3 +176,160 @@ async def get_report(
         created_at=report.created_at,
         updated_at=report.updated_at,
     )
+
+
+# ── PATCH /{report_id}/items/{item_id} ───────────────────────────────────────
+
+@router.patch("/{report_id}/items/{item_id}", response_model=ReportItemResponse)
+async def edit_report_item(
+    deal_room_id: uuid.UUID,
+    report_id: uuid.UUID,
+    item_id: uuid.UUID,
+    body: ReportItemEditBody,
+    request: Request,
+    session: SessionDep,
+    current_user: CurrentUserDep,
+) -> ReportItemResponse:
+    """Senior analyst edits an item's content (original AI content preserved)."""
+    dr_repo = DealRoomRepository(session, current_user.tenant_id, current_user.id)
+    if await dr_repo.get_by_id(deal_room_id) is None:
+        raise HTTPException(404, "Deal room not found")
+
+    report_repo = ReportRepository(session, current_user.tenant_id, current_user.id)
+    report = await report_repo.get_by_id(report_id)
+    if report is None or report.deal_room_id != deal_room_id:
+        raise HTTPException(404, "Report not found")
+    if report.status == "approved":
+        raise HTTPException(409, "Report is approved and read-only")
+
+    result = await session.execute(
+        select(ReportItem).where(
+            ReportItem.id == item_id,
+            ReportItem.report_id == report_id,
+        )
+    )
+    item = result.scalar_one_or_none()
+    if item is None:
+        raise HTTPException(404, "Report item not found")
+
+    item.edited_content = body.edited_content
+    item.edited_by = current_user.id
+    item.edited_at = datetime.now(timezone.utc)
+    await session.flush()
+
+    await log_event(
+        session=session,
+        actor_id=current_user.id,
+        actor_email=current_user.email,
+        actor_role=current_user.role,
+        tenant_id=current_user.tenant_id,
+        action=AuditAction.REPORT_ITEM_EDITED,
+        resource_type="report_item",
+        resource_id=item_id,
+        resource_name=f"report_item:{item_id}",
+        deal_room_id=deal_room_id,
+        metadata={"report_id": str(report_id)},
+        request=request,
+    )
+    await session.commit()
+    await session.refresh(item)
+    return ReportItemResponse.model_validate(item)
+
+
+# ── POST /{report_id}/status ──────────────────────────────────────────────────
+
+@router.post("/{report_id}/status", response_model=dict)
+async def update_report_status(
+    deal_room_id: uuid.UUID,
+    report_id: uuid.UUID,
+    body: ReportStatusBody,
+    request: Request,
+    session: SessionDep,
+    current_user: CurrentUserDep,
+) -> dict:
+    """Submit for review or approve a report."""
+    dr_repo = DealRoomRepository(session, current_user.tenant_id, current_user.id)
+    if await dr_repo.get_by_id(deal_room_id) is None:
+        raise HTTPException(404, "Deal room not found")
+
+    report_repo = ReportRepository(session, current_user.tenant_id, current_user.id)
+    report = await report_repo.get_by_id(report_id)
+    if report is None or report.deal_room_id != deal_room_id:
+        raise HTTPException(404, "Report not found")
+
+    if body.action == "submit_for_review":
+        if report.status not in ("draft",):
+            raise HTTPException(409, f"Cannot submit report in status '{report.status}'")
+        report.status = "in_review"
+        await session.flush()
+        await log_event(
+            session=session,
+            actor_id=current_user.id,
+            actor_email=current_user.email,
+            actor_role=current_user.role,
+            tenant_id=current_user.tenant_id,
+            action=AuditAction.REPORT_SUBMITTED,
+            resource_type="report",
+            resource_id=report_id,
+            deal_room_id=deal_room_id,
+            request=request,
+        )
+        await session.commit()
+        return {"status": "in_review"}
+
+    elif body.action == "approve":
+        if report.status != "in_review":
+            raise HTTPException(409, f"Cannot approve report in status '{report.status}'")
+
+        from app.services.approval_service import assert_can_approve, approve_report
+
+        if body.sign_off_notes:
+            moderation = await moderate_content(body.sign_off_notes)
+            if moderation.flagged:
+                await log_event(
+                    session=session,
+                    actor_id=current_user.id,
+                    actor_email=current_user.email,
+                    actor_role=current_user.role,
+                    tenant_id=current_user.tenant_id,
+                    action=AuditAction.GUARDRAIL_CONTENT_FLAGGED,
+                    resource_type="report",
+                    resource_id=report_id,
+                    metadata={"categories": moderation.categories},
+                    request=request,
+                )
+                await session.commit()
+                raise HTTPException(422, f"Content flagged: {moderation.categories}")
+
+        await assert_can_approve(
+            deal_room_id=deal_room_id,
+            report_id=report_id,
+            current_user_id=current_user.id,
+            tenant_id=current_user.tenant_id,
+            session=session,
+        )
+        approval = await approve_report(
+            report=report,
+            approved_by=current_user.id,
+            tenant_id=current_user.tenant_id,
+            session=session,
+            sign_off_notes=body.sign_off_notes,
+        )
+        await log_event(
+            session=session,
+            actor_id=current_user.id,
+            actor_email=current_user.email,
+            actor_role=current_user.role,
+            tenant_id=current_user.tenant_id,
+            action=AuditAction.REPORT_APPROVED,
+            resource_type="report",
+            resource_id=report_id,
+            deal_room_id=deal_room_id,
+            metadata={"approval_id": str(approval.id)},
+            request=request,
+        )
+        await session.commit()
+        return {"status": "approved", "approval_id": str(approval.id)}
+
+    else:
+        raise HTTPException(400, f"Unknown action: {body.action}")

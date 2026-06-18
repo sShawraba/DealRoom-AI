@@ -116,6 +116,10 @@ def create_app() -> FastAPI:
     from app.routers.ml import router as ml_router
     from app.routers.reports import router as reports_router
     from app.routers.stream import router as stream_router
+    from app.routers.annotations import _deal_room_router as annotations_dr_router
+    from app.routers.annotations import _annotation_router as annotations_router
+    from app.routers.management_qa import router as management_qa_router
+    from app.routers.management_qa import _mq_router as management_question_router
     app.include_router(health_router)
     app.include_router(admin_router)
     app.include_router(auth_router)
@@ -125,6 +129,10 @@ def create_app() -> FastAPI:
     app.include_router(ml_router)
     app.include_router(reports_router)
     app.include_router(stream_router)
+    app.include_router(annotations_dr_router)
+    app.include_router(annotations_router)
+    app.include_router(management_qa_router)
+    app.include_router(management_question_router)
 
     return app
 

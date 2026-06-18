@@ -46,6 +46,24 @@ doc_type_enum = Enum(
     create_type=False,
 )
 
+annotation_type_enum = Enum(
+    "comment", "verified", "disputed",
+    name="annotation_type",
+    create_type=False,
+)
+
+qa_category_enum = Enum(
+    "financial", "legal", "operational", "strategic",
+    name="qa_category",
+    create_type=False,
+)
+
+qa_priority_enum = Enum(
+    "critical", "high", "medium",
+    name="qa_priority",
+    create_type=False,
+)
+
 
 # ── Mixin ─────────────────────────────────────────────────────────────────────
 class TimestampMixin:

@@ -12,7 +12,7 @@ from app.core.database import Base
 from app.models.base import TimestampMixin
 
 report_status_enum = PgEnum(
-    "pending", "running", "draft", "failed",
+    "pending", "running", "draft", "failed", "in_review", "approved",
     name="report_status",
     create_type=False,
 )
@@ -82,6 +82,13 @@ class ReportItem(Base):
         sa.Boolean, nullable=False, server_default="true"
     )
     item_index: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
+    edited_content: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    edited_by: Mapped[uuid.UUID | None] = mapped_column(
+        sa.UUID(as_uuid=True), sa.ForeignKey("users.id"), nullable=True
+    )
+    edited_at: Mapped[datetime | None] = mapped_column(
+        sa.DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
     )

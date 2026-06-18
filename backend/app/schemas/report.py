@@ -15,6 +15,9 @@ class ReportItemResponse(BaseModel):
     citation: dict[str, Any] | None
     is_verified: bool
     item_index: int
+    edited_content: str | None = None
+    edited_by: uuid.UUID | None = None
+    edited_at: datetime | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -66,3 +69,12 @@ class SectionOutput(BaseModel):
 
 class ReportCreate(BaseModel):
     pass
+
+
+class ReportItemEditBody(BaseModel):
+    edited_content: str
+
+
+class ReportStatusBody(BaseModel):
+    action: str  # "submit_for_review" | "approve"
+    sign_off_notes: str | None = None

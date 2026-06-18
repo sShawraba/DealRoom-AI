@@ -49,3 +49,9 @@ backend/migrations/versions/__pycache__/
 
 # Uploads
 backend/uploads/
+
+# Specify (workflow tool — ephemeral state only)
+.specify/
+
+# Claude Code (local settings only)
+.claude/
