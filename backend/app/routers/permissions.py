@@ -2,11 +2,9 @@
 from __future__ import annotations
 
 import uuid
-from typing import Optional
 
 import structlog
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel
 from sqlalchemy import delete, select
 
 from app.core.audit import AuditAction, log_event
@@ -14,6 +12,7 @@ from app.core.deps import CurrentUser, CurrentUserDep, SessionDep
 from app.models.document import Document
 from app.models.document_permission import DocumentPermission
 from app.repositories.deal_room import DealRoomRepository
+from app.schemas.permission import PermissionGrant, PermissionGrantResponse, PermissionUpdateRequest
 from app.services.document_service import grant_default_permissions
 
 log = structlog.get_logger(__name__)
@@ -21,32 +20,6 @@ log = structlog.get_logger(__name__)
 router = APIRouter(prefix="/api/v1/documents", tags=["permissions"])
 
 SENIOR_ROLES = {"owner", "senior_analyst"}
-
-
-# ── Schemas ───────────────────────────────────────────────────────────────────
-
-class PermissionGrant(BaseModel):
-    user_id: Optional[uuid.UUID] = None
-    role: Optional[str] = None
-    can_view: bool = True
-    can_download: bool = False
-
-
-class PermissionUpdateRequest(BaseModel):
-    mode: str = "restricted"
-    grants: list[PermissionGrant] = []
-
-
-class PermissionGrantResponse(BaseModel):
-    id: uuid.UUID
-    document_id: uuid.UUID
-    user_id: uuid.UUID | None
-    role: str | None
-    can_view: bool
-    can_download: bool
-    granted_by: uuid.UUID | None
-
-    model_config = {"from_attributes": True}
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

@@ -8,7 +8,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.core.config import settings
+from app.core.limiter import RateLimitExceeded, _rate_limit_exceeded_handler, ip_limiter
 from app.core.logging import setup_logging
+from app.middleware.request_id import RequestIDMiddleware
 
 log = structlog.get_logger(__name__)
 
@@ -83,6 +85,10 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    # Rate limiter state (shared by all @ip_limiter / @user_limiter decorators)
+    app.state.limiter = ip_limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
     # CORS
     cors_origins = (
         ["http://localhost:5173"]
@@ -96,6 +102,9 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # Request ID — must be added after CORS so it wraps all responses
+    app.add_middleware(RequestIDMiddleware)
 
     # Global unhandled exception handler — never expose stack traces to clients.
     @app.exception_handler(Exception)

@@ -1,0 +1,103 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: dealroom
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: dealroom
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U dealroom -d dealroom"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      APP_ENV: development
+      VAULT_ADDR: ${{ secrets.VAULT_ADDR }}
+      VAULT_TOKEN: ${{ secrets.VAULT_TOKEN }}
+      TEST_DATABASE_URL: postgresql://dealroom:password@localhost:5432/dealroom
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        working-directory: backend
+        run: pip install -r requirements.txt
+      - name: Run migrations
+        working-directory: backend
+        run: alembic upgrade head
+      - name: Run tests
+        working-directory: backend
+        run: pytest tests/ -v --tb=short
+
+  ml-eval:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        working-directory: backend
+        run: pip install -r requirements.txt
+      - name: Run ML evaluation gate
+        run: python ml/evaluate.py
+
+  prompt-regression:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: dealroom
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: dealroom
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U dealroom -d dealroom"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      APP_ENV: development
+      VAULT_ADDR: ${{ secrets.VAULT_ADDR }}
+      VAULT_TOKEN: ${{ secrets.VAULT_TOKEN }}
+      TEST_DATABASE_URL: postgresql://dealroom:password@localhost:5432/dealroom
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        working-directory: backend
+        run: pip install -r requirements.txt
+      - name: Run prompt regression tests
+        working-directory: backend
+        run: pytest tests/test_prompt_regression.py -v --tb=short

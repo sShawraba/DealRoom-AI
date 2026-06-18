@@ -39,9 +39,14 @@ def _feature_names() -> tuple[str, ...]:
     )
 
 
+@lru_cache(maxsize=1)
+def _get_openai_client() -> AsyncOpenAI:
+    return AsyncOpenAI(api_key=settings.openai_api_key)
+
+
 async def extract_ratios_from_chunks(chunks: list[str], session=None) -> FinancialRatios:
     """Single gpt-4o-mini call to extract financial ratios from document chunks."""
-    client = AsyncOpenAI(api_key=settings.openai_api_key)
+    client = _get_openai_client()
     combined = "\n\n".join(chunks[:20])
 
     response = await client.chat.completions.create(

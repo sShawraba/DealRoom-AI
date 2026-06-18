@@ -1,0 +1,76 @@
+{
+  "sections": {
+    "executive_summary": [
+      {
+        "content": "Acme Corp is a B2B SaaS company founded in 2018 with $12M ARR and 150 employees.",
+        "citation": {"source": "acme_overview.pdf", "page": 1},
+        "is_verified": true
+      },
+      {
+        "content": "The company operates in the enterprise workflow automation market with 3-year CAGR of 42%.",
+        "citation": {"source": "acme_overview.pdf", "page": 3},
+        "is_verified": true
+      }
+    ],
+    "financial_health": [
+      {
+        "content": "FY2023 revenue was $12.1M, up 38% YoY, with gross margin of 74%.",
+        "citation": {"source": "financials_2023.pdf", "page": 5},
+        "is_verified": true
+      },
+      {
+        "content": "Cash burn rate is $420K/month with 18 months of runway at current burn.",
+        "citation": {"source": "financials_2023.pdf", "page": 8},
+        "is_verified": true
+      }
+    ],
+    "legal_flags": [
+      {
+        "content": "No outstanding litigation as of Q4 2023 per counsel sign-off letter dated 2024-01-15.",
+        "citation": {"source": "legal_clearance.pdf", "page": 1},
+        "is_verified": true
+      },
+      {
+        "content": "IP is fully owned by the company; no third-party licensing encumbrances noted.",
+        "citation": {"source": "ip_schedule.pdf", "page": 2},
+        "is_verified": true
+      }
+    ],
+    "commercial_assessment": [
+      {
+        "content": "Top 5 customers represent 41% of ARR; churn rate is 4.2% annually.",
+        "citation": {"source": "customer_cohort.pdf", "page": 4},
+        "is_verified": true
+      },
+      {
+        "content": "NPS score of 62 places the product in the top quartile of B2B SaaS benchmarks.",
+        "citation": {"source": "customer_cohort.pdf", "page": 7},
+        "is_verified": true
+      }
+    ],
+    "red_flags": [
+      {
+        "content": "Two enterprise contracts (18% of ARR) are up for renewal in Q2 2024 with no signed LOIs.",
+        "citation": {"source": "contract_schedule.pdf", "page": 11},
+        "is_verified": false
+      },
+      {
+        "content": "Founder dependency risk: CEO and CTO together hold all ML IP knowledge.",
+        "citation": {"source": "org_chart.pdf", "page": 2},
+        "is_verified": false
+      }
+    ],
+    "key_questions": [
+      {
+        "content": "Clarify the revenue recognition policy for multi-year contracts — unclear if upfront or ratable.",
+        "citation": {"source": "financials_2023.pdf", "page": 12},
+        "is_verified": false
+      },
+      {
+        "content": "Obtain signed renewal LOIs for the two contracts representing 18% of ARR before close.",
+        "citation": {"source": "contract_schedule.pdf", "page": 11},
+        "is_verified": false
+      }
+    ]
+  }
+}

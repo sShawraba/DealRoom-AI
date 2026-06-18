@@ -15,6 +15,7 @@ from app.core.deps import (
     SessionDep,
     get_current_user,
 )
+from app.core.limiter import user_limiter
 from app.core.minio import MinioService, get_minio
 from app.core.redis import get_arq_pool
 from app.models.document_permission import DocumentPermission
@@ -207,6 +208,7 @@ async def delete_document(
 
 
 @router.get("/{doc_id}/download")
+@user_limiter.limit("50/hour")
 async def download_document(
     deal_room_id: uuid.UUID,
     doc_id: uuid.UUID,

@@ -2,46 +2,21 @@
 from __future__ import annotations
 
 import uuid
-from typing import Optional
+from typing import Optional  # noqa: F401 (used in query params)
 
 import structlog
 from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel
 from sqlalchemy import select, text
 
 from app.core.deps import CurrentUser, CurrentUserDep, SessionDep
 from app.repositories.deal_room import DealRoomRepository
 from app.repositories.report import ReportItemRepository, ReportRepository
+from app.schemas.comparison import CompareResponse, DealRoomComparisonItem, DealRoomSearchResult
 from app.schemas.pagination import PaginatedResponse
 
 log = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/api/v1/deal-rooms", tags=["comparison"])
-
-
-# ── Response schemas ──────────────────────────────────────────────────────────
-
-class DealRoomComparisonItem(BaseModel):
-    id: uuid.UUID
-    name: str
-    target_company: str
-    risk_score: float | None
-    risk_tier: str | None
-    red_flag_count: int
-    financial_snapshot: list[str]
-    top_findings: list[str]
-
-
-class CompareResponse(BaseModel):
-    deal_rooms: list[DealRoomComparisonItem]
-
-
-class DealRoomSearchResult(BaseModel):
-    id: uuid.UUID
-    name: str
-    target_company: str
-    risk_tier: str | None
-    match_score: float
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

@@ -179,17 +179,28 @@ async def delete_deal_room(
 
 # ── Member management ─────────────────────────────────────────────────────────
 
-@router.get("/{room_id}/members", response_model=list[DealRoomMemberResponse])
+@router.get("/{room_id}/members", response_model=PaginatedResponse[DealRoomMemberResponse])
 async def list_members(
     room_id: UUID,
     session: SessionDep,
     current_user: CurrentUserDep,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
 ):
+    """List all members of a deal room (paginated)."""
     repo = _repo(session, current_user)
     room = await repo.get_by_id(room_id)
     if room is None:
         raise HTTPException(status_code=404, detail="Deal room not found")
-    return await repo.list_members(room_id)
+    all_members = await repo.list_members(room_id)
+    start = (page - 1) * page_size
+    page_items = all_members[start: start + page_size]
+    return PaginatedResponse(
+        items=page_items,
+        total=len(all_members),
+        page=page,
+        page_size=page_size,
+    )
 
 
 @router.post("/{room_id}/members", response_model=DealRoomMemberResponse, status_code=201)

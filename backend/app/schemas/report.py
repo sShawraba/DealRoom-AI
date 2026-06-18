@@ -5,7 +5,8 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel
+from bleach import clean
+from pydantic import BaseModel, field_validator
 
 
 class ReportItemResponse(BaseModel):
@@ -78,3 +79,8 @@ class ReportItemEditBody(BaseModel):
 class ReportStatusBody(BaseModel):
     action: str  # "submit_for_review" | "approve"
     sign_off_notes: str | None = None
+
+    @field_validator("sign_off_notes")
+    @classmethod
+    def sanitise_sign_off_notes(cls, v: str | None) -> str | None:
+        return clean(v, tags=[], strip=True) if v else v

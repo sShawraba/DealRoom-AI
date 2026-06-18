@@ -39,14 +39,18 @@ services:
   backend:
     restart: always
     volumes: []
+    environment:
+      LOG_LEVEL: info
     deploy:
       resources:
         limits:
-          memory: 1g
+          memory: 512m
 
   worker:
     restart: always
     volumes: []
+    environment:
+      LOG_LEVEL: info
     deploy:
       resources:
         limits:

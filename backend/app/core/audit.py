@@ -38,6 +38,7 @@ class AuditAction:
     QA_EMAIL_SENT = "qa.email_sent"
     GUARDRAIL_CONTENT_FLAGGED = "guardrail.content_flagged"
     PERMISSION_DOCUMENT_RESTRICTED = "permission.document_restricted"
+    CACHE_INVALIDATED = "cache.invalidated"
 
 
 async def log_event(

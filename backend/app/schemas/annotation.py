@@ -5,6 +5,7 @@ import uuid
 from datetime import datetime
 from typing import Literal
 
+from bleach import clean
 from pydantic import BaseModel, field_validator
 
 
@@ -12,6 +13,11 @@ class AnnotationCreate(BaseModel):
     report_item_id: uuid.UUID
     content: str
     type: Literal["comment", "verified", "disputed"] = "comment"
+
+    @field_validator("content")
+    @classmethod
+    def sanitise_content(cls, v: str) -> str:
+        return clean(v, tags=[], strip=True) if v else v
 
 
 class AnnotationPatch(BaseModel):
@@ -21,6 +27,11 @@ class AnnotationPatch(BaseModel):
 
 class AnnotationReplyCreate(BaseModel):
     content: str
+
+    @field_validator("content")
+    @classmethod
+    def sanitise_content(cls, v: str) -> str:
+        return clean(v, tags=[], strip=True) if v else v
 
 
 class AnnotationReplyResponse(BaseModel):

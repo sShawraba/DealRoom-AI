@@ -5,7 +5,8 @@ import uuid
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel
+from bleach import clean
+from pydantic import BaseModel, field_validator
 
 
 class ManagementQuestionResponse(BaseModel):
@@ -32,6 +33,11 @@ class QAGroupedResponse(BaseModel):
 
 class QAAnswerPatch(BaseModel):
     answer_notes: str
+
+    @field_validator("answer_notes")
+    @classmethod
+    def sanitise_answer_notes(cls, v: str) -> str:
+        return clean(v, tags=[], strip=True) if v else v
 
 
 class QASendEmailRequest(BaseModel):

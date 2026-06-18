@@ -6,6 +6,7 @@ from sqlalchemy import select
 
 from app.core.audit import AuditAction, log_event
 from app.core.deps import SessionDep
+from app.core.limiter import ip_limiter
 from app.core.security import create_access_token, hash_password, verify_password
 from app.models.tenant import Tenant
 from app.models.user import User
@@ -22,6 +23,7 @@ def _slugify(name: str) -> str:
 
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+@ip_limiter.limit("3/minute")
 async def register(body: RegisterRequest, request: Request, session: SessionDep):
     """Register a new tenant + admin user in one atomic transaction."""
     existing = (
@@ -71,6 +73,7 @@ async def register(body: RegisterRequest, request: Request, session: SessionDep)
 
 
 @router.post("/login", response_model=TokenResponse)
+@ip_limiter.limit("5/minute")
 async def login(body: LoginRequest, request: Request, session: SessionDep):
     """Authenticate user and return JWT."""
     user = (
