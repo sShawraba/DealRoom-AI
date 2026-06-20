@@ -200,124 +200,185 @@ export default function Report() {
 
   const isApproved = report?.status === 'approved';
 
+  const buildSectionProse = (items) => {
+    const sentences = items
+      .map((item) => (item.edited_content || item.content || '').replace(/\s*\[SOURCE:[^\]]*\]/gi, '').trim())
+      .filter(Boolean);
+
+    // Split into paragraphs of ~4 sentences each for readability
+    const paragraphs = [];
+    for (let i = 0; i < sentences.length; i += 4) {
+      paragraphs.push(sentences.slice(i, i + 4).join(' '));
+    }
+
+    // Deduplicated sources
+    const seen = new Set();
+    const sources = [];
+    for (const item of items) {
+      if (item.citation?.source_name) {
+        const key = item.citation.source_name;
+        if (!seen.has(key)) {
+          seen.add(key);
+          sources.push(item.citation);
+        }
+      }
+    }
+
+    return { paragraphs, sources };
+  };
+
   const handleExportPDF = () => {
     const doc = new jsPDF({ unit: 'pt', format: 'a4' });
     const company = report?.deal_room_name ?? 'Report';
     const date = report?.created_at ? new Date(report.created_at).toLocaleDateString() : '';
     const pageW = doc.internal.pageSize.getWidth();
-    const marginL = 56;
-    const marginR = 56;
+    const pageH = doc.internal.pageSize.getHeight();
+    const marginL = 62;
+    const marginR = 62;
     const contentW = pageW - marginL - marginR;
     let y = 56;
 
     const checkPage = (needed = 20) => {
-      if (y + needed > doc.internal.pageSize.getHeight() - 56) {
-        doc.addPage();
-        y = 56;
-      }
+      if (y + needed > pageH - 56) { doc.addPage(); y = 56; }
     };
 
-    const writeWrapped = (text, fontSize, color, bold = false) => {
+    const writeParagraph = (text, fontSize, color, bold = false, extraGapAfter = 0) => {
       doc.setFontSize(fontSize);
       doc.setTextColor(...color);
       doc.setFont('helvetica', bold ? 'bold' : 'normal');
       const lines = doc.splitTextToSize(text, contentW);
-      const lineH = fontSize * 1.45;
-      checkPage(lines.length * lineH);
+      const lineH = fontSize * 1.55;
+      checkPage(lines.length * lineH + extraGapAfter);
       doc.text(lines, marginL, y);
-      y += lines.length * lineH;
+      y += lines.length * lineH + extraGapAfter;
     };
 
-    // Cover header
-    doc.setFillColor(26, 58, 92);
-    doc.rect(0, 0, pageW, 90, 'F');
-    doc.setFontSize(22);
-    doc.setTextColor(255, 255, 255);
-    doc.setFont('helvetica', 'bold');
-    doc.text(company, marginL, 38);
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'normal');
-    doc.text('Due Diligence Report', marginL, 56);
-    if (date) doc.text(`Generated: ${date}`, marginL, 72);
-    y = 110;
+    // ── Cover page ──────────────────────────────────────────────────────────
+    doc.setFillColor(26, 94, 58);          // brand green
+    doc.rect(0, 0, pageW, 110, 'F');
+    doc.setFillColor(212, 168, 75);        // gold rule
+    doc.rect(0, 110, pageW, 3, 'F');
 
+    doc.setFontSize(24);
+    doc.setTextColor(250, 249, 245);
+    doc.setFont('helvetica', 'bold');
+    doc.text(company, marginL, 46);
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Due Diligence Report', marginL, 66);
+    doc.setFontSize(10);
+    doc.setTextColor(200, 230, 210);
+    if (date) doc.text(`Generated: ${date}`, marginL, 88);
+    y = 130;
+
+    // Risk score line
     if (report?.risk_score != null) {
+      const tier = (report.risk_tier ?? '').toUpperCase();
+      const scoreText = `Risk Score: ${report.risk_score} / 100${tier ? `  |  ${tier}` : ''}`;
       doc.setFontSize(10);
-      doc.setTextColor(100, 100, 100);
-      doc.setFont('helvetica', 'normal');
-      doc.text(`Risk Score: ${report.risk_score}/10`, marginL, y);
-      y += 20;
+      doc.setTextColor(80, 80, 80);
+      doc.setFont('helvetica', 'bold');
+      doc.text(scoreText, marginL, y);
+      y += 22;
     }
 
-    for (const section of sections) {
-      y += 10;
-      checkPage(50);
+    // Horizontal rule
+    doc.setDrawColor(212, 168, 75);
+    doc.setLineWidth(0.5);
+    doc.line(marginL, y, pageW - marginR, y);
+    y += 18;
 
-      // Section heading bar
-      doc.setFillColor(240, 245, 255);
-      doc.rect(marginL - 8, y - 14, contentW + 16, 22, 'F');
+    // ── Sections ─────────────────────────────────────────────────────────────
+    for (const section of sections) {
+      checkPage(60);
+
+      // Section heading
+      doc.setFillColor(245, 248, 245);
+      doc.rect(marginL - 10, y - 13, contentW + 20, 22, 'F');
       doc.setFontSize(13);
-      doc.setTextColor(26, 58, 92);
+      doc.setTextColor(26, 94, 58);
       doc.setFont('helvetica', 'bold');
       doc.text(section.title, marginL, y);
-      y += 18;
+      y += 20;
 
-      for (const item of section.items) {
-        const text = (item.edited_content || item.content || '').replace(/\s*\[SOURCE:[^\]]*\]/gi, '').trim();
-        if (!text) continue;
-        y += 6;
-        writeWrapped(text, 10, [40, 40, 40]);
+      const { paragraphs, sources } = buildSectionProse(section.items);
 
-        if (item.citation?.source_name) {
-          y += 2;
-          writeWrapped(
-            `Source: ${item.citation.source_name}${item.citation.page_number ? `, p.${item.citation.page_number}` : ''}`,
-            8.5,
-            [130, 130, 130],
-          );
-        }
+      for (const para of paragraphs) {
+        writeParagraph(para, 10.5, [30, 30, 30], false, 10);
+      }
+
+      // Sources block at end of section
+      if (sources.length > 0) {
         y += 4;
+        checkPage(30);
+        doc.setDrawColor(220, 220, 220);
+        doc.setLineWidth(0.3);
+        doc.line(marginL, y, marginL + 120, y);
+        y += 8;
+        const sourceText = 'Sources: ' + sources.map((s) =>
+          s.source_name + (s.page_number ? ` (p.${s.page_number})` : '')
+        ).join('  ·  ');
+        writeParagraph(sourceText, 8, [140, 140, 140], false, 0);
+        y += 18;
+      } else {
+        y += 14;
       }
     }
 
-    const filename = `${company.replace(/[^a-z0-9]/gi, '-')}-due-diligence.pdf`;
-    doc.save(filename);
+    // Page numbers
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(160, 160, 160);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`${company} — Confidential  |  Page ${i} of ${pageCount}`, marginL, pageH - 28);
+    }
+
+    doc.save(`${company.replace(/[^a-z0-9]/gi, '-')}-due-diligence.pdf`);
   };
 
   const handleExportWord = () => {
     const company = report?.deal_room_name ?? 'Report';
     const date = report?.created_at ? new Date(report.created_at).toLocaleDateString() : '';
+    const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
     let html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
 <head><meta charset="utf-8">
 <style>
-  body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; line-height: 1.5; margin: 2cm; color: #111; }
-  h1 { font-size: 18pt; color: #1a1a2e; margin-bottom: 4pt; }
-  h2 { font-size: 13pt; color: #1a3a5c; border-bottom: 1px solid #ccc; padding-bottom: 4pt; margin-top: 20pt; }
-  p { margin: 6pt 0; }
-  .meta { color: #666; font-size: 9pt; }
-  .citation { color: #888; font-size: 9pt; font-style: italic; }
+  body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; line-height: 1.7; margin: 2.5cm 3cm; color: #1a1a1a; }
+  h1 { font-size: 22pt; color: #1a5e3a; margin-bottom: 2pt; border-bottom: 3px solid #d4a84b; padding-bottom: 6pt; }
+  h2 { font-size: 13pt; color: #1a5e3a; border-bottom: 1px solid #d4a84b; padding-bottom: 3pt; margin-top: 28pt; margin-bottom: 10pt; }
+  p { margin: 0 0 10pt 0; text-align: justify; }
+  .meta { color: #666; font-size: 9.5pt; margin-bottom: 4pt; }
+  .risk { font-size: 10pt; font-weight: bold; color: #1a5e3a; margin-bottom: 16pt; }
+  .sources { color: #888; font-size: 8.5pt; font-style: italic; border-top: 1px solid #e0e0e0; margin-top: 6pt; padding-top: 5pt; }
   .unverified { color: #b45309; }
 </style>
 </head><body>`;
-    html += `<h1>${company} — Due Diligence Report</h1>`;
-    html += `<p class="meta">Status: ${report?.status ?? ''} &nbsp;|&nbsp; Generated: ${date}</p>`;
+
+    html += `<h1>${esc(company)} &mdash; Due Diligence Report</h1>`;
+    html += `<p class="meta">Status: ${esc(report?.status ?? '')} &nbsp;&nbsp;|&nbsp;&nbsp; Generated: ${esc(date)}</p>`;
     if (report?.risk_score != null) {
-      html += `<p class="meta">Risk Score: ${report.risk_score}/10</p>`;
+      const tier = report.risk_tier ? ` &mdash; ${report.risk_tier.toUpperCase()}` : '';
+      html += `<p class="risk">Risk Score: ${report.risk_score} / 100${tier}</p>`;
     }
 
     for (const section of sections) {
-      html += `<h2>${section.title}</h2>`;
-      for (const item of section.items) {
-        const text = (item.edited_content || item.content || '').replace(/\s*\[SOURCE:[^\]]*\]/gi, '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        const cls = item.is_verified ? '' : ' class="unverified"';
-        html += `<p${cls}>${text}`;
-        if (item.edited_by_email) {
-          html += ` <span class="citation">(edited by ${item.edited_by_email})</span>`;
-        }
-        html += `</p>`;
-        if (item.citation?.source_name) {
-          html += `<p class="citation">Source: ${item.citation.source_name}${item.citation.page_number ? `, p.${item.citation.page_number}` : ''}</p>`;
-        }
+      html += `<h2>${esc(section.title)}</h2>`;
+      const { paragraphs, sources } = buildSectionProse(section.items);
+
+      for (const para of paragraphs) {
+        const hasUnverified = section.items.some((it) => !it.is_verified);
+        const cls = hasUnverified ? ' class="unverified"' : '';
+        html += `<p${cls}>${esc(para)}</p>`;
+      }
+
+      if (sources.length > 0) {
+        const srcList = sources
+          .map((s) => esc(s.source_name) + (s.page_number ? ` (p.${s.page_number})` : ''))
+          .join(' &nbsp;&middot;&nbsp; ');
+        html += `<p class="sources">Sources: ${srcList}</p>`;
       }
     }
 
@@ -326,7 +387,7 @@ export default function Report() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${(company).replace(/[^a-z0-9]/gi, '-')}-due-diligence.doc`;
+    a.download = `${company.replace(/[^a-z0-9]/gi, '-')}-due-diligence.doc`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

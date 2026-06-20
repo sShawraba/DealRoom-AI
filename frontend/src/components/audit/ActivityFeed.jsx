@@ -1,18 +1,24 @@
 import { useState } from 'react';
 
 const ACTION_COLORS = {
-  USER_REGISTERED:           'bg-blue-100 text-blue-700',
-  USER_LOGGED_IN:            'bg-brand-warm text-brand-taupe',
-  DEAL_ROOM_CREATED:         'bg-green-100 text-green-700',
-  DEAL_ROOM_UPDATED:         'bg-yellow-100 text-yellow-700',
-  DOCUMENT_UPLOADED:         'bg-purple-100 text-purple-700',
-  REPORT_TRIGGERED:          'bg-orange-100 text-orange-700',
-  REPORT_APPROVED:           'bg-green-100 text-green-700',
-  ANNOTATION_CREATED:        'bg-blue-100 text-blue-700',
-  ANNOTATION_DISPUTED:       'bg-red-100 text-red-700',
-  ANNOTATION_RESOLVED:       'bg-green-100 text-green-700',
-  MEMBER_ADDED:              'bg-indigo-100 text-indigo-700',
-  PERMISSION_DOC_RESTRICTED: 'bg-amber-100 text-amber-700',
+  'user.registered':              'bg-blue-100 text-blue-700',
+  'user.login':                   'bg-brand-warm text-brand-taupe',
+  'user.login_failed':            'bg-red-100 text-red-700',
+  'deal_room.created':            'bg-green-100 text-green-700',
+  'deal_room.updated':            'bg-yellow-100 text-yellow-700',
+  'deal_room.deleted':            'bg-red-100 text-red-700',
+  'deal_room.accessed':           'bg-gray-100 text-gray-600',
+  'document.uploaded':            'bg-purple-100 text-purple-700',
+  'document.downloaded':          'bg-indigo-100 text-indigo-700',
+  'document.deleted':             'bg-red-100 text-red-700',
+  'report.submitted_for_review':  'bg-orange-100 text-orange-700',
+  'report.approved':              'bg-green-100 text-green-700',
+  'annotation.created':           'bg-blue-100 text-blue-700',
+  'annotation.disputed':          'bg-red-100 text-red-700',
+  'annotation.resolved':          'bg-green-100 text-green-700',
+  'permission.member_invited':    'bg-indigo-100 text-indigo-700',
+  'permission.document_restricted': 'bg-amber-100 text-amber-700',
+  'analysis.started':             'bg-cyan-100 text-cyan-700',
 };
 
 const FILTER_ACTIONS = Object.keys(ACTION_COLORS);
@@ -34,19 +40,9 @@ export default function ActivityFeed({ events = [], loading, onFilterChange, fil
 
   const inputCls = 'border border-brand-sand rounded-lg px-3 py-1.5 text-sm bg-white text-brand-ink placeholder-brand-taupe focus:outline-none focus:border-brand-green focus:ring-1 focus:ring-brand-green';
 
-  if (loading) {
-    return (
-      <div className="space-y-3 animate-pulse">
-        {[1, 2, 3, 4, 5].map((i) => (
-          <div key={i} className="h-12 bg-brand-sand rounded-lg" />
-        ))}
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-4">
-      {/* Filters */}
+      {/* Filters — always visible so clicking them is responsive */}
       <div className="bg-white rounded-xl border border-brand-sand p-4 space-y-3">
         <div className="flex flex-wrap gap-2">
           <input
@@ -80,14 +76,20 @@ export default function ActivityFeed({ events = [], loading, onFilterChange, fil
                   : 'border-brand-sand text-brand-taupe hover:border-brand-taupe'
               }`}
             >
-              {action.replace(/_/g, ' ')}
+              {action.replace(/[._]/g, ' ')}
             </button>
           ))}
         </div>
       </div>
 
       {/* Event list */}
-      {events.length === 0 ? (
+      {loading ? (
+        <div className="space-y-3 animate-pulse">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="h-12 bg-brand-sand rounded-lg" />
+          ))}
+        </div>
+      ) : events.length === 0 ? (
         <div className="text-center py-12 text-brand-taupe">
           <p className="text-2xl mb-2">◈</p>
           <p className="text-sm">No events found.</p>
@@ -101,7 +103,7 @@ export default function ActivityFeed({ events = [], loading, onFilterChange, fil
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${actionStyle}`}>
-                      {event.action?.replace(/_/g, ' ')}
+                      {event.action?.replace(/[._]/g, ' ')}
                     </span>
                     <span className="text-xs text-brand-taupe truncate">{event.actor_email}</span>
                     {event.resource_name && (

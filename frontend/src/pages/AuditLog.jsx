@@ -9,11 +9,18 @@ export default function AuditLog() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [filters, setFilters] = useState({ user: '', actions: [], dateFrom: '', dateTo: '' });
+
+  const handleFilterChange = useCallback((updater) => {
+    setPage(1);
+    setFilters(updater);
+  }, []);
   const [exporting, setExporting] = useState(false);
 
   const fetchEvents = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const params = { page, page_size: 50 };
       if (filters.user) params.actor_email = filters.user;
@@ -23,8 +30,10 @@ export default function AuditLog() {
       const data = await list(params);
       setEvents(data.items ?? []);
       setTotal(data.total ?? 0);
-    } catch {
+    } catch (err) {
+      setError(err?.response?.data?.detail ?? 'Failed to load audit log.');
       setEvents([]);
+      setTotal(0);
     } finally {
       setLoading(false);
     }
@@ -68,7 +77,12 @@ export default function AuditLog() {
           </button>
         </div>
 
-        <ActivityFeed events={events} loading={loading} filters={filters} onFilterChange={setFilters} />
+        {error && (
+          <div className="mb-4 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
+            {error}
+          </div>
+        )}
+        <ActivityFeed events={events} loading={loading} filters={filters} onFilterChange={handleFilterChange} />
 
         {!loading && total > 50 && (
           <div className="mt-6">
