@@ -18,6 +18,8 @@ AI-powered M&A due diligence platform. Upload financial, legal, and commercial d
 ### Analysis Report
 ![Analysis report — risk score, findings, and inline annotations](<Frontend screenshots/Analysis_report.png>)
 
+> **Disclaimer:** All company names, documents, financial figures, and analysis data shown in the screenshots are fictional and generated solely for demonstration purposes. Any resemblance to real companies or actual financial data is coincidental.
+
 ---
 
 ## Features
