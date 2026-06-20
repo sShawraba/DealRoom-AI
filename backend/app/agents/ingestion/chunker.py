@@ -14,54 +14,68 @@ _CHILD_CHUNK_SIZE = 128
 _CHILD_CHUNK_OVERLAP = 16
 
 
-def _split_text(text: str, chunk_size: int, chunk_overlap: int) -> list[str]:
+def _split_text(
+    text: str,
+    chunk_size: int,
+    chunk_overlap: int,
+    _seps: tuple[str, ...] = ("\n\n", "\n", " "),
+) -> list[str]:
     """Recursive character splitter — mirrors RecursiveCharacterTextSplitter without langchain."""
     if not text.strip():
         return []
     if len(text) <= chunk_size:
         return [text]
 
-    for sep in ("\n\n", "\n", " "):
-        if sep not in text:
-            continue
-        parts = [p for p in text.split(sep) if p]
-        chunks: list[str] = []
-        buf: list[str] = []
-        buf_len = 0
+    # Find the first separator present in the text and track the remaining finer ones.
+    # Passing only remaining_seps on each recursive call guarantees progress and
+    # prevents infinite recursion when a joined buffer is still oversized.
+    sep = None
+    remaining_seps: tuple[str, ...] = ()
+    for i, s in enumerate(_seps):
+        if s in text:
+            sep = s
+            remaining_seps = _seps[i + 1:]
+            break
 
-        for part in parts:
-            join_cost = len(sep) if buf else 0
-            if buf_len + join_cost + len(part) > chunk_size and buf:
-                joined = sep.join(buf)
-                if len(joined) > chunk_size:
-                    chunks.extend(_split_text(joined, chunk_size, chunk_overlap))
-                else:
-                    chunks.append(joined)
-                overlap = sep.join(buf)[-chunk_overlap:]
-                buf = [overlap] if overlap else []
-                buf_len = len(overlap)
-            buf.append(part)
-            buf_len = len(sep.join(buf))
+    if sep is None:
+        # No separator found — hard split by character
+        result = []
+        start = 0
+        while start < len(text):
+            end = min(start + chunk_size, len(text))
+            result.append(text[start:end])
+            start = end - chunk_overlap
+            if start >= len(text):
+                break
+        return [c for c in result if c.strip()]
 
-        if buf:
+    parts = [p for p in text.split(sep) if p]
+    chunks: list[str] = []
+    buf: list[str] = []
+    buf_len = 0
+
+    for part in parts:
+        join_cost = len(sep) if buf else 0
+        if buf_len + join_cost + len(part) > chunk_size and buf:
             joined = sep.join(buf)
             if len(joined) > chunk_size:
-                chunks.extend(_split_text(joined, chunk_size, chunk_overlap))
+                chunks.extend(_split_text(joined, chunk_size, chunk_overlap, remaining_seps))
             else:
                 chunks.append(joined)
+            overlap = sep.join(buf)[-chunk_overlap:]
+            buf = [overlap] if overlap else []
+            buf_len = len(overlap)
+        buf.append(part)
+        buf_len = len(sep.join(buf))
 
-        return [c for c in chunks if c.strip()]
+    if buf:
+        joined = sep.join(buf)
+        if len(joined) > chunk_size:
+            chunks.extend(_split_text(joined, chunk_size, chunk_overlap, remaining_seps))
+        else:
+            chunks.append(joined)
 
-    # No separators found — hard split by character
-    result = []
-    start = 0
-    while start < len(text):
-        end = min(start + chunk_size, len(text))
-        result.append(text[start:end])
-        start = end - chunk_overlap
-        if start >= len(text):
-            break
-    return [c for c in result if c.strip()]
+    return [c for c in chunks if c.strip()]
 
 
 def chunk_document(

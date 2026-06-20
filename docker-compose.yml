@@ -66,15 +66,20 @@ services:
     image: hashicorp/vault:1.15
     container_name: dealroom_vault
     cap_add: [IPC_LOCK]
+    user: root
+    entrypoint: ["vault"]
+    command: ["server", "-config=/vault/config/config.hcl"]
     ports:
       - "8200:8200"
     environment:
-      VAULT_DEV_ROOT_TOKEN_ID: dev-root-token
-      VAULT_DEV_LISTEN_ADDRESS: "0.0.0.0:8200"
       VAULT_ADDR: "http://0.0.0.0:8200"
-    command: vault server -dev
+    volumes:
+      - ./vault/config.hcl:/vault/config/config.hcl:ro
+      - vault_data:/vault/data
+      - vault_init:/vault/init
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8200/v1/sys/health"]
+      # Passes whether vault is unsealed, sealed, or uninitialised — just needs to be responding
+      test: ["CMD-SHELL", "vault status 2>&1 | grep -q 'Initialized'"]
       interval: 5s
       timeout: 3s
       retries: 15
@@ -94,24 +99,17 @@ services:
   vault-init:
     image: hashicorp/vault:1.15
     container_name: dealroom_vault_init
+    user: root
     depends_on:
       vault:
         condition: service_healthy
     environment:
       VAULT_ADDR: http://vault:8200
       VAULT_TOKEN: dev-root-token
-    entrypoint: >
-      /bin/sh -c "
-      vault kv put secret/dealroom/auth        secret_key=changeme-min-32-chars-local-dev;
-      vault kv put secret/dealroom/database    url=postgresql+asyncpg://dealroom:password@db:5432/dealroom;
-      vault kv put secret/dealroom/redis       url=redis://redis:6379/0;
-      vault kv put secret/dealroom/openai      api_key=sk-replace-me;
-      vault kv put secret/dealroom/langsmith   api_key=ls-replace-me;
-      vault kv put secret/dealroom/minio       access_key=minioadmin secret_key=minioadmin;
-      vault kv put secret/dealroom/email       smtp_password=replace-me;
-      vault kv put secret/dealroom/research    tavily_key=replace-me news_api_key=replace-me alpha_vantage_key=replace-me;
-      echo 'Vault secrets initialised';
-      "
+    volumes:
+      - ./vault/init.sh:/vault/init.sh:ro
+      - vault_init:/vault/init
+    entrypoint: ["sh", "/vault/init.sh"]
 
   backend:
     build:
@@ -130,6 +128,8 @@ services:
         condition: service_healthy
       vault:
         condition: service_healthy
+      vault-init:
+        condition: service_completed_successfully
       mailhog:
         condition: service_healthy
     healthcheck:
@@ -157,6 +157,8 @@ services:
         condition: service_healthy
       vault:
         condition: service_healthy
+      vault-init:
+        condition: service_completed_successfully
     volumes:
       - ./backend:/app
       - ./ml:/app/ml
@@ -183,3 +185,5 @@ volumes:
   db_data:
   redis_data:
   minio_data:
+  vault_data:
+  vault_init:
