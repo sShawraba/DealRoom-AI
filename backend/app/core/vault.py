@@ -35,6 +35,19 @@ def read_secret(path: str, key: str) -> str:
     return value
 
 
+def read_secret_optional(path: str, key: str, default: str = "") -> str:
+    """Read a single key from a KV v2 secret path. Returns default if missing."""
+    try:
+        client = get_vault_client()
+        secret = client.secrets.kv.v2.read_secret_version(
+            path=path,
+            mount_point="secret",
+        )
+        return secret["data"]["data"].get(key) or default
+    except Exception:
+        return default
+
+
 def load_all_secrets() -> dict:
     """Load all application secrets from Vault. Returns a flat dict keyed by Settings field names."""
     return {
@@ -45,6 +58,7 @@ def load_all_secrets() -> dict:
         "langchain_api_key": read_secret("dealroom/langsmith", "api_key"),
         "minio_access_key":  read_secret("dealroom/minio",     "access_key"),
         "minio_secret_key":  read_secret("dealroom/minio",     "secret_key"),
+        "smtp_user":         read_secret_optional("dealroom/email", "smtp_user"),
         "smtp_password":     read_secret("dealroom/email",     "smtp_password"),
         "tavily_api_key":    read_secret("dealroom/research",  "tavily_key"),
         "news_api_key":      read_secret("dealroom/research",  "news_api_key"),

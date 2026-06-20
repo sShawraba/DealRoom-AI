@@ -2,7 +2,7 @@ import { useState } from 'react';
 
 const ACTION_COLORS = {
   USER_REGISTERED:           'bg-blue-100 text-blue-700',
-  USER_LOGGED_IN:            'bg-gray-100 text-gray-600',
+  USER_LOGGED_IN:            'bg-brand-warm text-brand-taupe',
   DEAL_ROOM_CREATED:         'bg-green-100 text-green-700',
   DEAL_ROOM_UPDATED:         'bg-yellow-100 text-yellow-700',
   DOCUMENT_UPLOADED:         'bg-purple-100 text-purple-700',
@@ -32,11 +32,13 @@ export default function ActivityFeed({ events = [], loading, onFilterChange, fil
     }));
   };
 
+  const inputCls = 'border border-brand-sand rounded-lg px-3 py-1.5 text-sm bg-white text-brand-ink placeholder-brand-taupe focus:outline-none focus:border-brand-green focus:ring-1 focus:ring-brand-green';
+
   if (loading) {
     return (
       <div className="space-y-3 animate-pulse">
         {[1, 2, 3, 4, 5].map((i) => (
-          <div key={i} className="h-12 bg-gray-200 rounded-lg" />
+          <div key={i} className="h-12 bg-brand-sand rounded-lg" />
         ))}
       </div>
     );
@@ -45,26 +47,26 @@ export default function ActivityFeed({ events = [], loading, onFilterChange, fil
   return (
     <div className="space-y-4">
       {/* Filters */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
+      <div className="bg-white rounded-xl border border-brand-sand p-4 space-y-3">
         <div className="flex flex-wrap gap-2">
           <input
             type="text"
             placeholder="Filter by user email…"
             value={active.user}
             onChange={(e) => setActive((f) => ({ ...f, user: e.target.value }))}
-            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 flex-1 min-w-48"
+            className={`${inputCls} flex-1 min-w-48`}
           />
           <input
             type="date"
             value={active.dateFrom}
             onChange={(e) => setActive((f) => ({ ...f, dateFrom: e.target.value }))}
-            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className={inputCls}
           />
           <input
             type="date"
             value={active.dateTo}
             onChange={(e) => setActive((f) => ({ ...f, dateTo: e.target.value }))}
-            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className={inputCls}
           />
         </div>
         <div className="flex flex-wrap gap-1.5">
@@ -74,8 +76,8 @@ export default function ActivityFeed({ events = [], loading, onFilterChange, fil
               onClick={() => toggleAction(action)}
               className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${
                 active.actions.includes(action)
-                  ? 'border-blue-400 bg-blue-50 text-blue-700'
-                  : 'border-gray-200 text-gray-500 hover:border-gray-400'
+                  ? 'border-brand-green bg-brand-green text-brand-cream'
+                  : 'border-brand-sand text-brand-taupe hover:border-brand-taupe'
               }`}
             >
               {action.replace(/_/g, ' ')}
@@ -86,14 +88,14 @@ export default function ActivityFeed({ events = [], loading, onFilterChange, fil
 
       {/* Event list */}
       {events.length === 0 ? (
-        <div className="text-center py-12 text-gray-400">
-          <p className="text-2xl mb-2">📋</p>
+        <div className="text-center py-12 text-brand-taupe">
+          <p className="text-2xl mb-2">◈</p>
           <p className="text-sm">No events found.</p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
+        <div className="bg-white rounded-xl border border-brand-sand divide-y divide-brand-sand">
           {events.map((event) => {
-            const actionStyle = ACTION_COLORS[event.action] ?? 'bg-gray-100 text-gray-600';
+            const actionStyle = ACTION_COLORS[event.action] ?? 'bg-brand-warm text-brand-taupe';
             return (
               <div key={event.id} className="px-5 py-3 flex items-start gap-4">
                 <div className="flex-1 min-w-0">
@@ -101,16 +103,16 @@ export default function ActivityFeed({ events = [], loading, onFilterChange, fil
                     <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${actionStyle}`}>
                       {event.action?.replace(/_/g, ' ')}
                     </span>
-                    <span className="text-xs text-gray-500 truncate">{event.actor_email}</span>
+                    <span className="text-xs text-brand-taupe truncate">{event.actor_email}</span>
                     {event.resource_name && (
-                      <span className="text-xs text-gray-400 truncate">· {event.resource_name}</span>
+                      <span className="text-xs text-brand-sand truncate">· {event.resource_name}</span>
                     )}
                   </div>
                   {event.ip_address && (
-                    <p className="text-xs text-gray-400 mt-0.5">{event.ip_address}</p>
+                    <p className="text-xs text-brand-taupe mt-0.5">{event.ip_address}</p>
                   )}
                 </div>
-                <span className="text-xs text-gray-400 shrink-0">
+                <span className="text-xs text-brand-taupe shrink-0">
                   {event.occurred_at ? new Date(event.occurred_at).toLocaleString() : ''}
                 </span>
               </div>

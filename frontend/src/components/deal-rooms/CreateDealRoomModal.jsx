@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { create } from '../../api/dealRooms';
 
 export default function CreateDealRoomModal({ onClose, onCreated }) {
-  const [form, setForm] = useState({ company_name: '', description: '' });
+  const [form, setForm] = useState({ name: '', target_company: '', description: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -37,11 +37,24 @@ export default function CreateDealRoomModal({ onClose, onCreated }) {
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Company name</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Deal room name</label>
             <input
               type="text"
-              name="company_name"
-              value={form.company_name}
+              name="name"
+              value={form.name}
+              onChange={handleChange}
+              required
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Series B Due Diligence"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Target company</label>
+            <input
+              type="text"
+              name="target_company"
+              value={form.target_company}
               onChange={handleChange}
               required
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"

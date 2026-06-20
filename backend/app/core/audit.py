@@ -39,6 +39,8 @@ class AuditAction:
     GUARDRAIL_CONTENT_FLAGGED = "guardrail.content_flagged"
     PERMISSION_DOCUMENT_RESTRICTED = "permission.document_restricted"
     CACHE_INVALIDATED = "cache.invalidated"
+    USER_INVITED = "user.invited"
+    INVITE_ACCEPTED = "user.invite_accepted"
 
 
 async def log_event(

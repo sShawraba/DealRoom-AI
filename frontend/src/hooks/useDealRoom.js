@@ -19,7 +19,7 @@ export default function useDealRoom(dealRoomId) {
       ]);
       setDealRoom(dr);
       setDocuments(docs.items ?? []);
-      setMembers(mems);
+      setMembers(mems?.items ?? []);
     } catch (err) {
       setError(err);
     } finally {
@@ -27,7 +27,11 @@ export default function useDealRoom(dealRoomId) {
     }
   }, [dealRoomId]);
 
-  useEffect(() => { fetch(); }, [fetch]);
+  useEffect(() => {
+    fetch();
+    const interval = setInterval(fetch, 4000);
+    return () => clearInterval(interval);
+  }, [fetch]);
 
   return { dealRoom, documents, members, loading, error, refetch: fetch };
 }

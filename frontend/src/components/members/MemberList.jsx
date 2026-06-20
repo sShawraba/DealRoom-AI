@@ -1,8 +1,15 @@
 const ROLE_STYLES = {
-  owner:   'bg-purple-100 text-purple-700',
-  manager: 'bg-blue-100 text-blue-700',
-  analyst: 'bg-gray-100 text-gray-600',
-  viewer:  'bg-gray-100 text-gray-400',
+  owner:          'bg-purple-100 text-purple-700',
+  senior_analyst: 'bg-blue-100 text-blue-700',
+  analyst:        'bg-gray-100 text-gray-600',
+  viewer:         'bg-gray-100 text-gray-400',
+};
+
+const ROLE_LABELS = {
+  owner:          'Owner',
+  senior_analyst: 'Senior Analyst',
+  analyst:        'Analyst',
+  viewer:         'Viewer',
 };
 
 export default function MemberList({ members, onRemove, currentUserId }) {
@@ -19,8 +26,8 @@ export default function MemberList({ members, onRemove, currentUserId }) {
             <p className="text-xs text-gray-400">{m.email}</p>
           </div>
           <div className="flex items-center gap-3">
-            <span className={`text-xs font-medium px-2 py-0.5 rounded-full capitalize ${ROLE_STYLES[m.role] ?? ROLE_STYLES.viewer}`}>
-              {m.role}
+            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${ROLE_STYLES[m.role] ?? ROLE_STYLES.viewer}`}>
+              {ROLE_LABELS[m.role] ?? m.role}
             </span>
             {m.user_id !== currentUserId && onRemove && (
               <button onClick={() => onRemove(m.user_id)} className="text-xs text-red-500 hover:text-red-700">

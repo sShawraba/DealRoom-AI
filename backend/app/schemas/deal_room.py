@@ -42,6 +42,8 @@ class DealRoomMemberResponse(BaseModel):
     role: str
     invited_by: uuid.UUID | None
     invited_at: datetime
+    full_name: str | None = None
+    email: str | None = None
 
     model_config = {"from_attributes": True}
 

@@ -28,6 +28,11 @@ export default function DealRoom() {
   const [showInvite, setShowInvite] = useState(false);
   const [triggering, setTriggering] = useState(false);
 
+  const myMember = members.find((m) => m.user_id === user?.id);
+  const myRoomRole = myMember?.role;
+  const isRoomOwner = myRoomRole === 'owner';
+  const canRunAnalysis = myRoomRole === 'owner' || myRoomRole === 'senior_analyst';
+
   const handleUploaded = () => refetch();
 
   const handleDelete = async (docId) => {
@@ -71,7 +76,7 @@ export default function DealRoom() {
       <Topbar
         breadcrumbs={[
           { to: '/', label: 'Dashboard' },
-          { label: dealRoom?.company_name ?? 'Deal Room' },
+          { label: dealRoom?.target_company ?? 'Deal Room' },
         ]}
       />
 
@@ -79,19 +84,21 @@ export default function DealRoom() {
         {/* Header */}
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">{dealRoom?.company_name}</h1>
+            <h1 className="text-2xl font-bold text-gray-900">{dealRoom?.target_company}</h1>
             {dealRoom?.description && (
               <p className="mt-1 text-sm text-gray-500">{dealRoom.description}</p>
             )}
           </div>
-          <button
-            onClick={handleTriggerAnalysis}
-            disabled={triggering || !hasIndexed}
-            title={!hasIndexed ? 'Upload and index at least one document first' : ''}
-            className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors"
-          >
-            {triggering ? 'Starting…' : 'Run Analysis'}
-          </button>
+          {canRunAnalysis && (
+            <button
+              onClick={handleTriggerAnalysis}
+              disabled={triggering || !hasIndexed}
+              title={!hasIndexed ? 'Upload and index at least one document first' : ''}
+              className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors"
+            >
+              {triggering ? 'Starting…' : 'Run Analysis'}
+            </button>
+          )}
         </div>
 
         {/* Missing context panel */}
@@ -115,7 +122,7 @@ export default function DealRoom() {
               <h2 className="font-semibold text-gray-900 mb-4">Documents</h2>
               <DocumentUploader dealRoomId={roomId} onUploaded={handleUploaded} />
               <div className="mt-5">
-                <DocumentList documents={documents} onDelete={handleDelete} />
+                <DocumentList documents={documents} dealRoomId={roomId} onDelete={handleDelete} />
               </div>
             </div>
 
@@ -127,14 +134,16 @@ export default function DealRoom() {
           <div className="bg-white rounded-xl border border-gray-200 p-5">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold text-gray-900">Members</h2>
-              <button
-                onClick={() => setShowInvite(true)}
-                className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-              >
-                + Invite
-              </button>
+              {isRoomOwner && (
+                <button
+                  onClick={() => setShowInvite(true)}
+                  className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                >
+                  + Invite
+                </button>
+              )}
             </div>
-            <MemberList members={members} onRemove={handleRemoveMember} currentUserId={user?.id} />
+            <MemberList members={members} onRemove={isRoomOwner ? handleRemoveMember : null} currentUserId={user?.id} />
           </div>
         </div>
       </main>

@@ -33,6 +33,11 @@ class Settings(BaseSettings):
     SENTRY_DSN: str = ""
     MAX_UPLOAD_SIZE_MB: int = 50
 
+    # SMTP / email (non-sensitive config — password comes from Vault)
+    SMTP_HOST: str = "mailhog"
+    SMTP_PORT: int = 1025
+    APP_URL: str = "http://localhost:5173"
+
     # Secrets — populated from Vault in lifespan, NOT from .env.
     # Empty defaults prevent pydantic-settings from requiring them at import time.
     secret_key: str = ""
@@ -42,6 +47,7 @@ class Settings(BaseSettings):
     langchain_api_key: str = ""
     minio_access_key: str = "minioadmin"
     minio_secret_key: str = "minioadmin"
+    smtp_user: str = ""
     smtp_password: str = ""
     tavily_api_key: str = ""
     news_api_key: str = ""

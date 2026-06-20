@@ -29,7 +29,7 @@ export default function CompareModal({ rooms, onClose }) {
     const colors = RISK_COLORS[tier] ?? RISK_COLORS.null;
     return (
       <div className={`flex-1 rounded-xl border-2 ${colors.border} ${colors.bg} p-5`}>
-        <h3 className="font-semibold text-gray-900">{room.company_name}</h3>
+        <h3 className="font-semibold text-gray-900">{room.target_company}</h3>
         {room.risk_score != null && (
           <p className={`text-3xl font-bold mt-2 ${colors.text}`}>{room.risk_score}</p>
         )}
@@ -56,7 +56,7 @@ export default function CompareModal({ rooms, onClose }) {
 
           <div className="flex items-end gap-3">
             <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Base: {baseRoom?.company_name}</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Base: {baseRoom?.target_company}</label>
             </div>
             <div className="flex-1">
               <label className="block text-sm font-medium text-gray-700 mb-1">Compare with</label>
@@ -67,7 +67,7 @@ export default function CompareModal({ rooms, onClose }) {
               >
                 <option value="">Select deal room…</option>
                 {rooms.slice(1).map((r) => (
-                  <option key={r.id} value={r.id}>{r.company_name}</option>
+                  <option key={r.id} value={r.id}>{r.target_company}</option>
                 ))}
               </select>
             </div>

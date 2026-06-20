@@ -7,18 +7,18 @@ export default function Pagination({ page, total, pageSize, onChange }) {
       <button
         onClick={() => onChange(page - 1)}
         disabled={page <= 1}
-        className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg disabled:opacity-40 hover:bg-gray-50 transition-colors"
+        className="px-3 py-1.5 text-sm border border-brand-sand rounded-lg text-brand-ink disabled:opacity-40 hover:bg-brand-sand transition-colors"
       >
         Previous
       </button>
-      <span className="text-sm text-gray-600">
+      <span className="text-sm text-brand-taupe">
         Page {page} of {totalPages}
-        <span className="text-gray-400 ml-2">({total} total)</span>
+        <span className="ml-2" style={{ color: '#D4D0C4' }}>({total} total)</span>
       </span>
       <button
         onClick={() => onChange(page + 1)}
         disabled={page >= totalPages}
-        className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg disabled:opacity-40 hover:bg-gray-50 transition-colors"
+        className="px-3 py-1.5 text-sm border border-brand-sand rounded-lg text-brand-ink disabled:opacity-40 hover:bg-brand-sand transition-colors"
       >
         Next
       </button>

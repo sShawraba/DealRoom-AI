@@ -293,7 +293,10 @@ async def run_research_agent_cached(
     }
 
     # LangSmith tracing
-    config: dict = {"metadata": {"deal_room_id": deal_room_id, "tenant_id": tenant_id}}
+    config: dict = {
+        "metadata": {"deal_room_id": deal_room_id, "tenant_id": tenant_id},
+        "recursion_limit": 80,
+    }
     try:
         from langchain.callbacks import LangChainTracer
         tracer = LangChainTracer(project_name="dealroom-research")
@@ -301,8 +304,15 @@ async def run_research_agent_cached(
     except Exception:
         pass
 
-    result = await graph.ainvoke(initial_state, config=config)
-    findings = result["research_findings"]
+    try:
+        result = await graph.ainvoke(initial_state, config=config)
+        findings = result["research_findings"]
+    except Exception as exc:
+        if "recursion" in str(exc).lower() or "GraphRecursionError" in type(exc).__name__:
+            log.warning("research.recursion_limit_hit", company=target_company, error=str(exc))
+            findings = initial_state.get("research_findings") or {}
+        else:
+            raise
     findings = _ensure_findings_keys(findings)
 
     await redis.setex(key, settings.RESEARCH_CACHE_TTL, json.dumps(findings))

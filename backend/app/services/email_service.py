@@ -1,4 +1,4 @@
-"""Email service: send Q&A questions to a target company via SMTP."""
+"""Email service: SMTP sending for Q&A and user invitations."""
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -53,11 +53,15 @@ async def send_qa_email(
         f"{body}"
     )
 
-    smtp_host = getattr(settings, "SMTP_HOST", "smtp")
+    await aiosmtplib.send(message, sender=sender, recipients=[to], **_smtp_kwargs())
+    return datetime.now(timezone.utc)
+
+
+def _smtp_kwargs() -> dict:
+    smtp_host = getattr(settings, "SMTP_HOST", "mailhog")
     smtp_port = int(getattr(settings, "SMTP_PORT", 1025))
     smtp_user = getattr(settings, "smtp_user", "")
     smtp_password = getattr(settings, "smtp_password", "")
-
     kwargs: dict = {
         "hostname": smtp_host,
         "port": smtp_port,
@@ -67,6 +71,47 @@ async def send_qa_email(
     if smtp_user and smtp_password:
         kwargs["username"] = smtp_user
         kwargs["password"] = smtp_password
+    return kwargs
 
-    await aiosmtplib.send(message, sender=sender, recipients=[to], **kwargs)
-    return datetime.now(timezone.utc)
+
+async def send_invite_email(
+    to: str,
+    invited_by_name: str,
+    deal_room_name: str | None,
+    accept_url: str,
+) -> None:
+    """Send a deal-room invitation email with a one-click accept link."""
+    sender = getattr(settings, "smtp_user", "") or "noreply@dealroom.ai"
+
+    if deal_room_name:
+        subject = f"You've been invited to join {deal_room_name} on DealRoom AI"
+        body_lines = [
+            f"{invited_by_name} has invited you to collaborate on the deal room",
+            f'"{deal_room_name}" in DealRoom AI.',
+            "",
+            "Click the link below to set your password and join:",
+            accept_url,
+            "",
+            "This link expires in 7 days.",
+        ]
+    else:
+        subject = "You've been invited to DealRoom AI"
+        body_lines = [
+            f"{invited_by_name} has invited you to join their team on DealRoom AI.",
+            "",
+            "Click the link below to set your password and get started:",
+            accept_url,
+            "",
+            "This link expires in 7 days.",
+        ]
+
+    body = "\n".join(body_lines)
+    message = (
+        f"From: {sender}\r\n"
+        f"To: {to}\r\n"
+        f"Subject: {subject}\r\n"
+        f"Content-Type: text/plain; charset=utf-8\r\n"
+        f"\r\n"
+        f"{body}"
+    )
+    await aiosmtplib.send(message, sender=sender, recipients=[to], **_smtp_kwargs())

@@ -8,9 +8,8 @@ import uuid
 from datetime import datetime, timezone
 
 import structlog
-from PIL import Image, ImageDraw, ImageFont
 from pypdf import PdfReader, PdfWriter
-from pypdf.generic import ArrayObject, DecodedStreamObject, DictionaryObject, FloatObject, NameObject, NumberObject
+from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -44,6 +43,53 @@ async def upload_to_minio(
     minio.upload(key, data, content_type)
     log.info("minio.uploaded", key=key, bytes=len(data))
     return key
+
+
+async def grant_permissions_for_new_member(
+    user_id: uuid.UUID,
+    deal_room_id: uuid.UUID,
+    tenant_id: uuid.UUID,
+    role: str,
+    session: AsyncSession,
+) -> None:
+    """
+    Grant permissions on all existing documents in a deal room to a newly added member.
+    Called when a user joins a room after documents have already been uploaded.
+    """
+    from app.models.document import Document
+
+    result = await session.execute(
+        select(Document).where(
+            Document.deal_room_id == deal_room_id,
+            Document.tenant_id == tenant_id,
+        )
+    )
+    docs = list(result.scalars().all())
+    if not docs:
+        return
+
+    can_download = role in _DOWNLOAD_ROLES
+    for doc in docs:
+        existing = await session.execute(
+            select(DocumentPermission).where(
+                DocumentPermission.document_id == doc.id,
+                DocumentPermission.user_id == user_id,
+                DocumentPermission.tenant_id == tenant_id,
+            )
+        )
+        if existing.scalar_one_or_none() is not None:
+            continue
+        perm = DocumentPermission(
+            tenant_id=tenant_id,
+            document_id=doc.id,
+            user_id=user_id,
+            can_view=True,
+            can_download=can_download,
+        )
+        session.add(perm)
+
+    await session.flush()
+    log.info("permissions.granted_new_member", user_id=str(user_id), deal_room_id=str(deal_room_id), doc_count=len(docs))
 
 
 async def grant_default_permissions(
@@ -106,48 +152,64 @@ def stream_watermarked_document(
 
 def _build_watermark_pdf(text: str) -> bytes:
     """
-    Create a single-page PDF watermark using Pillow to draw diagonal text,
-    then embed the resulting image into a PDF page via pypdf.
+    Create a transparent single-page watermark PDF using native PDF text operators.
+
+    No image/background — just gray diagonal text tiled across a blank page.
+    This avoids the white-background problem that image-based watermarks cause
+    when merged on top of existing PDF content.
     """
-    # Page dimensions in points (letter: 612x792)
-    page_w, page_h = 612, 792
-    # Create RGBA image at 2x resolution for quality
-    scale = 2
-    img_w, img_h = page_w * scale, page_h * scale
-    img = Image.new("RGBA", (img_w, img_h), (255, 255, 255, 0))
-    draw = ImageDraw.Draw(img)
+    cos45 = math.cos(math.pi / 4)
+    sin45 = math.sin(math.pi / 4)
 
-    # Try to use a system font; fall back to default
-    try:
-        font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 24 * scale)
-    except (IOError, OSError):
-        font = ImageFont.load_default()
+    # Escape text for a PDF string literal
+    safe = text.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)").encode("latin-1", errors="replace").decode("latin-1")
 
-    # Tile rotated text across the image
-    tile_text = f"  {text}  "
-    for row in range(-3, 6):
-        for col in range(-3, 4):
-            x = col * 350 * scale + 100
-            y = row * 150 * scale
-            # Draw text at 45° using a temporary rotated image
-            txt_img = Image.new("RGBA", (600 * scale, 80 * scale), (255, 255, 255, 0))
-            txt_draw = ImageDraw.Draw(txt_img)
-            txt_draw.text((0, 0), tile_text, font=font, fill=(128, 128, 128, 80))
-            txt_rotated = txt_img.rotate(45, expand=True)
-            img.paste(txt_rotated, (x, y), txt_rotated)
+    parts = [
+        "q",
+        "0.65 0.65 0.65 rg",   # gray fill, no background rect
+        "BT",
+        "/WMFONT 9 Tf",
+    ]
+    for row in range(-1, 8):
+        for col in range(-1, 5):
+            x = col * 220
+            y = row * 130 + 30
+            parts.append(
+                f"{cos45:.5f} {sin45:.5f} {-sin45:.5f} {cos45:.5f} {x:.1f} {y:.1f} Tm"
+            )
+            parts.append(f"({safe}) Tj")
+    parts += ["ET", "Q"]
 
-    # Convert RGBA to RGB for JPEG embedding in PDF
-    rgb_img = Image.new("RGB", img.size, (255, 255, 255))
-    rgb_img.paste(img, mask=img.split()[3])
+    content_bytes = "\n".join(parts).encode("latin-1")
 
-    # Scale back to page size
-    rgb_img = rgb_img.resize((page_w, page_h), Image.LANCZOS)
+    writer = PdfWriter()
+    page = writer.add_blank_page(width=612, height=792)
 
-    # Save as PDF via Pillow
-    pdf_buf = io.BytesIO()
-    rgb_img.save(pdf_buf, format="PDF", resolution=72)
-    pdf_buf.seek(0)
-    return pdf_buf.read()
+    stream_obj = DecodedStreamObject()
+    stream_obj.set_data(content_bytes)
+    content_ref = writer._add_object(stream_obj)
+
+    font_dict = DictionaryObject({
+        NameObject("/Type"): NameObject("/Font"),
+        NameObject("/Subtype"): NameObject("/Type1"),
+        NameObject("/BaseFont"): NameObject("/Helvetica"),
+        NameObject("/Encoding"): NameObject("/WinAnsiEncoding"),
+    })
+    resources = DictionaryObject({
+        NameObject("/Font"): DictionaryObject({
+            NameObject("/WMFONT"): font_dict,
+        })
+    })
+
+    page.update({
+        NameObject("/Resources"): resources,
+        NameObject("/Contents"): content_ref,
+    })
+
+    out = io.BytesIO()
+    writer.write(out)
+    out.seek(0)
+    return out.read()
 
 
 def _merge_watermark(pdf_bytes: bytes, watermark_bytes: bytes) -> bytes:

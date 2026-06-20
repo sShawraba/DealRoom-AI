@@ -1,6 +1,4 @@
 """Document upload, list, delete, and download endpoints."""
-from __future__ import annotations
-
 import uuid
 
 import structlog
@@ -240,10 +238,10 @@ async def download_document(
         )
     )
     perm = perm_result.scalar_one_or_none()
-    if perm is None or not perm.can_download:
+    if perm is None or not perm.can_view:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You do not have download permission for this document",
+            detail="You do not have permission to view this document",
         )
 
     # Fetch from MinIO

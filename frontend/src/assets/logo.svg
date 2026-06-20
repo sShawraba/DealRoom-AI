@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 300" width="800" height="300">
+  <rect width="800" height="300" fill="#FAF9F5"/>
+
+  <!-- Split page icon -->
+  <g transform="translate(60, 50)">
+    <!-- Left half: raw -->
+    <rect x="0" y="0" width="80" height="200" rx="10 0 0 10" fill="#E8E2D0"/>
+    <line x1="16" y1="36" x2="62" y2="36" stroke="#B8AF9C" stroke-width="5" stroke-linecap="round"/>
+    <line x1="16" y1="58" x2="54" y2="58" stroke="#B8AF9C" stroke-width="5" stroke-linecap="round"/>
+    <line x1="16" y1="80" x2="66" y2="80" stroke="#B8AF9C" stroke-width="5" stroke-linecap="round"/>
+    <line x1="16" y1="102" x2="44" y2="102" stroke="#B8AF9C" stroke-width="5" stroke-linecap="round"/>
+    <line x1="16" y1="124" x2="60" y2="124" stroke="#B8AF9C" stroke-width="5" stroke-linecap="round"/>
+    <line x1="16" y1="146" x2="50" y2="146" stroke="#B8AF9C" stroke-width="5" stroke-linecap="round"/>
+    <line x1="16" y1="168" x2="64" y2="168" stroke="#B8AF9C" stroke-width="5" stroke-linecap="round"/>
+
+    <!-- Right half: analyzed -->
+    <rect x="80" y="0" width="80" height="200" rx="0 10 10 0" fill="#1A5E3A"/>
+    <line x1="98" y1="36" x2="144" y2="36" stroke="#FAF9F5" stroke-width="5.5" stroke-linecap="round"/>
+    <line x1="98" y1="58" x2="128" y2="58" stroke="#FAF9F5" stroke-width="5.5" stroke-linecap="round" opacity="0.6"/>
+    <line x1="98" y1="80" x2="142" y2="80" stroke="#FAF9F5" stroke-width="5.5" stroke-linecap="round" opacity="0.6"/>
+    <line x1="98" y1="102" x2="120" y2="102" stroke="#FAF9F5" stroke-width="5.5" stroke-linecap="round" opacity="0.45"/>
+
+    <!-- Gold checkmark -->
+    <circle cx="120" cy="146" r="22" fill="none" stroke="#D4A84B" stroke-width="4"/>
+    <path d="M108 146 L116 154 L134 134" fill="none" stroke="#D4A84B" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <!-- Wordmark — next to icon -->
+  <text x="240" y="138" font-family="Georgia, 'Times New Roman', serif" font-size="56" fill="#14211A" letter-spacing="-1"><tspan font-weight="bold">DealRoom</tspan> <tspan fill="#1A5E3A" font-weight="normal">AI</tspan></text>
+
+  <!-- Tagline -->
+  <text x="242" y="172" font-family="Helvetica, Arial, sans-serif" font-size="14" font-weight="600" fill="#14211A" letter-spacing="5">DUE DILIGENCE. <tspan fill="#1A5E3A">REIMAGINED.</tspan></text>
+
+  <!-- Gold rule under tagline -->
+  <line x1="242" y1="184" x2="572" y2="184" stroke="#D4A84B" stroke-width="1.2" stroke-linecap="round"/>
+</svg>

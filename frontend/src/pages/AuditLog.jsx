@@ -51,18 +51,18 @@ export default function AuditLog() {
 
   return (
     <>
-      <Topbar breadcrumbs={[{ to: '/', label: 'Dashboard' }, { label: 'Audit Log' }]} />
+      <Topbar breadcrumbs={[{ to: '/dashboard', label: 'Dashboard' }, { label: 'Audit Log' }]} />
 
       <main className="flex-1 px-6 py-6">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-xl font-semibold text-gray-900">Audit Log</h2>
-            <p className="text-sm text-gray-500 mt-0.5">{total} events</p>
+            <h2 className="text-xl font-semibold text-brand-ink">Audit Log</h2>
+            <p className="text-sm text-brand-taupe mt-0.5">{total} events</p>
           </div>
           <button
             onClick={handleExportCSV}
             disabled={exporting}
-            className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-60 transition-colors"
+            className="px-4 py-2 text-sm border border-brand-sand rounded-lg text-brand-ink hover:bg-brand-sand disabled:opacity-60 transition-colors"
           >
             {exporting ? 'Exporting…' : 'Export CSV'}
           </button>

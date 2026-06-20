@@ -1,8 +1,10 @@
 import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import useAuthStore from './store/authStore';
 import Sidebar from './components/layout/Sidebar';
+import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import AcceptInvite from './pages/AcceptInvite';
 import Dashboard from './pages/Dashboard';
 import DealRoom from './pages/DealRoom';
 import Report from './pages/Report';
@@ -14,7 +16,7 @@ function ProtectedLayout() {
   return (
     <div className="flex min-h-screen">
       <Sidebar />
-      <div className="flex-1 flex flex-col min-h-screen overflow-auto bg-gray-50">
+      <div className="flex-1 flex flex-col min-h-screen overflow-auto bg-brand-cream">
         <Outlet />
       </div>
     </div>
@@ -24,10 +26,12 @@ function ProtectedLayout() {
 export default function App() {
   return (
     <Routes>
+      <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      <Route path="/accept-invite" element={<AcceptInvite />} />
       <Route element={<ProtectedLayout />}>
-        <Route path="/" element={<Dashboard />} />
+        <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/deal-rooms/:roomId" element={<DealRoom />} />
         <Route path="/deal-rooms/:roomId/reports/:reportId" element={<Report />} />
         <Route path="/audit" element={<AuditLog />} />

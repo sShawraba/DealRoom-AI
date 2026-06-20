@@ -14,6 +14,56 @@ _CHILD_CHUNK_SIZE = 128
 _CHILD_CHUNK_OVERLAP = 16
 
 
+def _split_text(text: str, chunk_size: int, chunk_overlap: int) -> list[str]:
+    """Recursive character splitter — mirrors RecursiveCharacterTextSplitter without langchain."""
+    if not text.strip():
+        return []
+    if len(text) <= chunk_size:
+        return [text]
+
+    for sep in ("\n\n", "\n", " "):
+        if sep not in text:
+            continue
+        parts = [p for p in text.split(sep) if p]
+        chunks: list[str] = []
+        buf: list[str] = []
+        buf_len = 0
+
+        for part in parts:
+            join_cost = len(sep) if buf else 0
+            if buf_len + join_cost + len(part) > chunk_size and buf:
+                joined = sep.join(buf)
+                if len(joined) > chunk_size:
+                    chunks.extend(_split_text(joined, chunk_size, chunk_overlap))
+                else:
+                    chunks.append(joined)
+                overlap = sep.join(buf)[-chunk_overlap:]
+                buf = [overlap] if overlap else []
+                buf_len = len(overlap)
+            buf.append(part)
+            buf_len = len(sep.join(buf))
+
+        if buf:
+            joined = sep.join(buf)
+            if len(joined) > chunk_size:
+                chunks.extend(_split_text(joined, chunk_size, chunk_overlap))
+            else:
+                chunks.append(joined)
+
+        return [c for c in chunks if c.strip()]
+
+    # No separators found — hard split by character
+    result = []
+    start = 0
+    while start < len(text):
+        end = min(start + chunk_size, len(text))
+        result.append(text[start:end])
+        start = end - chunk_overlap
+        if start >= len(text):
+            break
+    return [c for c in result if c.strip()]
+
+
 def chunk_document(
     parsed: dict,
     document_id: uuid.UUID,
@@ -27,18 +77,6 @@ def chunk_document(
     Tables: single atomic chunk at child level (already small, no parent needed).
     Only child chunks receive embeddings (ingestion agent filters by chunk_level).
     """
-    from langchain_text_splitters import RecursiveCharacterTextSplitter
-
-    parent_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=_PARENT_CHUNK_SIZE,
-        chunk_overlap=_PARENT_CHUNK_OVERLAP,
-        length_function=len,
-    )
-    child_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=_CHILD_CHUNK_SIZE,
-        chunk_overlap=_CHILD_CHUNK_OVERLAP,
-        length_function=len,
-    )
 
     chunks: list[dict[str, Any]] = []
     chunk_index = 0
@@ -49,7 +87,7 @@ def chunk_document(
         # Prose: parent → child hierarchy
         full_text = "\n\n".join(page.get("text_blocks", []))
         if full_text.strip():
-            parent_splits = parent_splitter.split_text(full_text)
+            parent_splits = _split_text(full_text, _PARENT_CHUNK_SIZE, _PARENT_CHUNK_OVERLAP)
             for parent_text in parent_splits:
                 if not parent_text.strip():
                     continue
@@ -72,7 +110,7 @@ def chunk_document(
                 chunks.append(parent_chunk)
                 chunk_index += 1
 
-                child_splits = child_splitter.split_text(parent_text)
+                child_splits = _split_text(parent_text, _CHILD_CHUNK_SIZE, _CHILD_CHUNK_OVERLAP)
                 for child_text in child_splits:
                     if not child_text.strip():
                         continue
