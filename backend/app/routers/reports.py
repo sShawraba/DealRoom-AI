@@ -14,6 +14,7 @@ from app.core.guardrails import moderate_content
 from app.core.redis import get_arq_pool
 from app.models.document import Document
 from app.models.report import Report, ReportItem
+from app.models.user import User
 from app.repositories.deal_room import DealRoomRepository
 from app.repositories.report import ReportItemRepository, ReportRepository
 from app.schemas.pagination import PaginatedResponse
@@ -160,6 +161,15 @@ async def get_report(
     item_repo = ReportItemRepository(session)
     items = await item_repo.get_items_for_report(report_id)
 
+    # Batch-load editor names for items that have been edited
+    editor_ids = list({i.edited_by for i in items if i.edited_by})
+    editor_map: dict[uuid.UUID, str] = {}
+    if editor_ids:
+        user_rows = (await session.execute(
+            select(User).where(User.id.in_(editor_ids))
+        )).scalars().all()
+        editor_map = {u.id: u.email for u in user_rows}
+
     return ReportResponse(
         id=report.id,
         deal_room_id=report.deal_room_id,
@@ -172,7 +182,22 @@ async def get_report(
         has_unverified=report.has_unverified,
         missing_context=report.missing_context,
         error_message=report.error_message,
-        items=[ReportItemResponse.model_validate(i) for i in items],
+        items=[
+            ReportItemResponse(
+                id=i.id,
+                section_type=i.section_type,
+                content=i.content,
+                citation=i.citation,
+                is_verified=i.is_verified,
+                item_index=i.item_index,
+                edited_content=i.edited_content,
+                edited_by=i.edited_by,
+                edited_by_email=editor_map.get(i.edited_by) if i.edited_by else None,
+                edited_at=i.edited_at,
+                created_at=i.created_at,
+            )
+            for i in items
+        ],
         created_at=report.created_at,
         updated_at=report.updated_at,
     )
@@ -233,7 +258,19 @@ async def edit_report_item(
     )
     await session.commit()
     await session.refresh(item)
-    return ReportItemResponse.model_validate(item)
+    return ReportItemResponse(
+        id=item.id,
+        section_type=item.section_type,
+        content=item.content,
+        citation=item.citation,
+        is_verified=item.is_verified,
+        item_index=item.item_index,
+        edited_content=item.edited_content,
+        edited_by=item.edited_by,
+        edited_by_email=current_user.email,
+        edited_at=item.edited_at,
+        created_at=item.created_at,
+    )
 
 
 # ── POST /{report_id}/status ──────────────────────────────────────────────────
@@ -333,3 +370,57 @@ async def update_report_status(
 
     else:
         raise HTTPException(400, f"Unknown action: {body.action}")
+
+
+# ── POST /{report_id}/cancel ──────────────────────────────────────────────────
+
+@router.post("/{report_id}/cancel", response_model=dict)
+async def cancel_report(
+    deal_room_id: uuid.UUID,
+    report_id: uuid.UUID,
+    request: Request,
+    session: SessionDep,
+    current_user: CurrentUserDep,
+) -> dict:
+    """Cancel a pending or running report and abort its ARQ job."""
+    dr_repo = DealRoomRepository(session, current_user.tenant_id, current_user.id)
+    if await dr_repo.get_by_id(deal_room_id) is None:
+        raise HTTPException(404, "Deal room not found")
+
+    report_repo = ReportRepository(session, current_user.tenant_id, current_user.id)
+    report = await report_repo.get_by_id(report_id)
+    if report is None or report.deal_room_id != deal_room_id:
+        raise HTTPException(404, "Report not found")
+
+    if report.status not in ("pending", "running"):
+        raise HTTPException(409, f"Cannot cancel report in status '{report.status}'")
+
+    # Best-effort abort the ARQ job
+    if report.arq_job_id:
+        try:
+            from arq.jobs import Job
+            arq_pool = await get_arq_pool()
+            job = Job(report.arq_job_id, arq_pool)
+            await job.abort(timeout=2)
+        except Exception as exc:
+            log.warning("report.cancel_abort_failed", job_id=report.arq_job_id, error=str(exc))
+
+    report.status = "failed"
+    report.error_message = "Cancelled by user"
+    await session.flush()
+    await log_event(
+        session=session,
+        actor_id=current_user.id,
+        actor_email=current_user.email,
+        actor_role=current_user.role,
+        tenant_id=current_user.tenant_id,
+        action=AuditAction.REPORT_SUBMITTED,
+        resource_type="report",
+        resource_id=report_id,
+        deal_room_id=deal_room_id,
+        metadata={"cancelled": True},
+        request=request,
+    )
+    await session.commit()
+    log.info("report.cancelled", report_id=str(report_id), user=str(current_user.id))
+    return {"status": "failed", "message": "Cancelled"}

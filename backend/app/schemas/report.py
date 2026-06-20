@@ -18,6 +18,7 @@ class ReportItemResponse(BaseModel):
     item_index: int
     edited_content: str | None = None
     edited_by: uuid.UUID | None = None
+    edited_by_email: str | None = None
     edited_at: datetime | None = None
     created_at: datetime
 

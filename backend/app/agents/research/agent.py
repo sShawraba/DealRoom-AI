@@ -108,7 +108,7 @@ def _ensure_findings_keys(findings: dict) -> dict:
 async def reason_node(state: ResearchState) -> dict:
     """LLM picks the next tool call(s) to execute."""
     llm = ChatOpenAI(
-        model=settings.LLM_MODEL,
+        model=settings.CHEAP_MODEL,
         api_key=settings.openai_api_key,
         temperature=0,
     ).bind_tools(_ALL_TOOLS)
@@ -235,7 +235,7 @@ def _after_reason(state: ResearchState) -> str:
 
 def should_continue(state: ResearchState) -> str:
     """After evaluate: END if sufficient or over limit, else loop back to reason."""
-    if state.get("sufficient") or state.get("tool_call_count", 0) >= 12:
+    if state.get("sufficient") or state.get("tool_call_count", 0) >= 6:
         return END
     return "reason"
 
@@ -304,6 +304,7 @@ async def run_research_agent_cached(
     except Exception:
         pass
 
+    result = None
     try:
         result = await graph.ainvoke(initial_state, config=config)
         findings = result["research_findings"]
@@ -316,7 +317,8 @@ async def run_research_agent_cached(
     findings = _ensure_findings_keys(findings)
 
     await redis.setex(key, settings.RESEARCH_CACHE_TTL, json.dumps(findings))
-    log.info("research.complete", company=target_company, tool_calls=result["tool_call_count"])
+    tool_calls = result["tool_call_count"] if result else 0
+    log.info("research.complete", company=target_company, tool_calls=tool_calls)
 
     try:
         from app.services.streaming import AnalysisEvent, publish_progress

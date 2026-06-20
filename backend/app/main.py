@@ -1,3 +1,20 @@
+import sys
+
+# Patch pydantic v1's ForwardRef resolver for Python 3.12+.
+# langsmith schemas use pydantic v1 List[Run] ForwardRef which crashes at
+# import time of langchain_openai unless we fix this first.
+if sys.version_info >= (3, 12):
+    try:
+        import typing as _typing
+        from pydantic import v1 as _pydantic_v1
+
+        def _patched_evaluate_forwardref(type_: _typing.ForwardRef, globalns, localns):
+            return type_._evaluate(globalns, localns, recursive_guard=frozenset())
+
+        _pydantic_v1.typing.evaluate_forwardref = _patched_evaluate_forwardref
+    except Exception:
+        pass
+
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -132,6 +149,7 @@ def create_app() -> FastAPI:
     from app.routers.comparison import router as comparison_router
     from app.routers.invites import router as invites_router
     from app.routers.permissions import router as permissions_router
+    from app.routers.audit_log import router as audit_log_router
     app.include_router(health_router)
     app.include_router(admin_router)
     app.include_router(auth_router)
@@ -150,6 +168,7 @@ def create_app() -> FastAPI:
     app.include_router(management_qa_router)
     app.include_router(management_question_router)
     app.include_router(permissions_router)
+    app.include_router(audit_log_router)
 
     return app
 

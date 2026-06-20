@@ -38,6 +38,8 @@ class AnnotationReplyResponse(BaseModel):
     id: uuid.UUID
     annotation_id: uuid.UUID
     author_id: uuid.UUID
+    author_email: str | None = None
+    author_name: str | None = None
     content: str
     created_at: datetime
 
@@ -49,6 +51,8 @@ class AnnotationResponse(BaseModel):
     deal_room_id: uuid.UUID
     report_item_id: uuid.UUID
     author_id: uuid.UUID
+    author_email: str | None = None
+    author_name: str | None = None
     content: str
     type: str
     resolved: bool
@@ -56,6 +60,7 @@ class AnnotationResponse(BaseModel):
     resolved_at: datetime | None
     created_at: datetime
     updated_at: datetime
+    replies: list[AnnotationReplyResponse] = []
 
     model_config = {"from_attributes": True}
 

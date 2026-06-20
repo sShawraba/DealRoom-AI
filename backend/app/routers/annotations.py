@@ -6,10 +6,13 @@ from datetime import datetime, timezone
 
 import structlog
 from fastapi import APIRouter, HTTPException, Request, status
+from sqlalchemy import select
 
 from app.core.audit import AuditAction, log_event
 from app.core.deps import CurrentUserDep, SessionDep
 from app.core.guardrails import moderate_content
+from app.models.annotation import Annotation, AnnotationReply
+from app.models.user import User
 from app.repositories.annotation import AnnotationRepository
 from app.repositories.deal_room import DealRoomRepository
 from app.schemas.annotation import (
@@ -95,7 +98,22 @@ async def create_annotation(
         request=request,
     )
     await session.commit()
-    return AnnotationResponse.model_validate(annotation)
+    return AnnotationResponse(
+        id=annotation.id,
+        deal_room_id=annotation.deal_room_id,
+        report_item_id=annotation.report_item_id,
+        author_id=annotation.author_id,
+        author_email=current_user.email,
+        author_name=current_user.full_name,
+        content=annotation.content,
+        type=annotation.type,
+        resolved=annotation.resolved,
+        resolved_by=annotation.resolved_by,
+        resolved_at=annotation.resolved_at,
+        created_at=annotation.created_at,
+        updated_at=annotation.updated_at,
+        replies=[],
+    )
 
 
 @_deal_room_router.get(
@@ -117,10 +135,69 @@ async def list_annotations(
     grouped, total = await ann_repo.list_by_deal_room(
         deal_room_id=deal_room_id, page=page, page_size=page_size
     )
-    serialized = {
-        item_id: [AnnotationResponse.model_validate(a) for a in anns]
-        for item_id, anns in grouped.items()
-    }
+
+    all_anns = [a for anns in grouped.values() for a in anns]
+
+    # Batch-load authors for all annotations
+    author_ids = list({a.author_id for a in all_anns})
+    user_map: dict[uuid.UUID, User] = {}
+    if author_ids:
+        rows = (await session.execute(
+            select(User).where(User.id.in_(author_ids))
+        )).scalars().all()
+        user_map = {u.id: u for u in rows}
+
+    # Load replies with their authors in one query
+    ann_ids = [a.id for a in all_anns]
+    replies_by_ann: dict[uuid.UUID, list[AnnotationReplyResponse]] = {}
+    if ann_ids:
+        from sqlalchemy.orm import aliased
+        ReplyAuthor = aliased(User)
+        reply_rows = (await session.execute(
+            select(AnnotationReply, ReplyAuthor.email, ReplyAuthor.full_name)
+            .join(ReplyAuthor, ReplyAuthor.id == AnnotationReply.author_id)
+            .where(
+                AnnotationReply.annotation_id.in_(ann_ids),
+                AnnotationReply.tenant_id == current_user.tenant_id,
+            )
+            .order_by(AnnotationReply.created_at)
+        )).all()
+
+        for reply, r_email, r_name in reply_rows:
+            replies_by_ann.setdefault(reply.annotation_id, []).append(
+                AnnotationReplyResponse(
+                    id=reply.id,
+                    annotation_id=reply.annotation_id,
+                    author_id=reply.author_id,
+                    author_email=r_email,
+                    author_name=r_name,
+                    content=reply.content,
+                    created_at=reply.created_at,
+                )
+            )
+
+    serialized: dict[str, list[AnnotationResponse]] = {}
+    for item_id, anns in grouped.items():
+        serialized[item_id] = [
+            AnnotationResponse(
+                id=a.id,
+                deal_room_id=a.deal_room_id,
+                report_item_id=a.report_item_id,
+                author_id=a.author_id,
+                author_email=user_map[a.author_id].email if a.author_id in user_map else None,
+                author_name=user_map[a.author_id].full_name if a.author_id in user_map else None,
+                content=a.content,
+                type=a.type,
+                resolved=a.resolved,
+                resolved_by=a.resolved_by,
+                resolved_at=a.resolved_at,
+                created_at=a.created_at,
+                updated_at=a.updated_at,
+                replies=replies_by_ann.get(a.id, []),
+            )
+            for a in anns
+        ]
+
     return AnnotationsByItemResponse(
         annotations=serialized, total=total, page=page, page_size=page_size
     )
@@ -213,4 +290,12 @@ async def create_reply(
         content=body.content,
     )
     await session.commit()
-    return AnnotationReplyResponse.model_validate(reply)
+    return AnnotationReplyResponse(
+        id=reply.id,
+        annotation_id=reply.annotation_id,
+        author_id=reply.author_id,
+        author_email=current_user.email,
+        author_name=current_user.full_name,
+        content=reply.content,
+        created_at=reply.created_at,
+    )

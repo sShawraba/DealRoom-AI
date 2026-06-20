@@ -4,7 +4,7 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import select, cast, JSON
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.report import Report, ReportItem
@@ -69,8 +69,8 @@ class ReportItemRepository:
                         tenant_id=tenant_id,
                         section_type=section_type,
                         content=content,
-                        citation=citation,
-                        is_verified=is_verified,
+                        citation=citation if citation is not None else None,
+                        is_verified=bool(is_verified),
                         item_index=idx,
                     )
                 )

@@ -21,3 +21,6 @@ export const approve = (dealRoomId, reportId) =>
   client
     .post(`/deal-rooms/${dealRoomId}/reports/${reportId}/status`, { status: 'approved' })
     .then((r) => r.data);
+
+export const cancel = (dealRoomId, reportId) =>
+  client.post(`/deal-rooms/${dealRoomId}/reports/${reportId}/cancel`).then((r) => r.data);

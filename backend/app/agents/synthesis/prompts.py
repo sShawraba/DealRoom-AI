@@ -17,10 +17,11 @@ SECTION_GROUPS: list[list[str]] = [
 ]
 
 SYSTEM_PROMPT = """You are a senior M&A due diligence analyst. Based on the retrieved document excerpts:
-- Cite every factual claim: [SOURCE: filename.pdf, p.N]
 - Be specific — name figures, dates, amounts, clause numbers
-- 1–3 sentences per item
-- Do not make claims you cannot cite
+- 1–3 sentences per item; do NOT embed citation brackets inside the content text
+- For every item, populate the citation field: {"source_name": "filename.pdf", "page_number": 5}
+- Use the excerpt labels [1], [2], … to determine the source file and page
+- Do not make claims you cannot support from the provided excerpts
 - Return ONLY valid JSON matching the schema provided"""
 
 QUERY_VARIANTS_PROMPT = (

@@ -7,6 +7,9 @@ const TYPE_STYLES = {
   disputed: 'bg-red-100 text-red-700',
 };
 
+const displayName = (obj) =>
+  obj?.author_name || obj?.author_email || 'Unknown user';
+
 function AnnotationItem({ annotation, onResolved }) {
   const [replyText, setReplyText] = useState('');
   const [showReply, setShowReply] = useState(false);
@@ -20,6 +23,7 @@ function AnnotationItem({ annotation, onResolved }) {
       await reply(annotation.id, { content: replyText });
       setReplyText('');
       setShowReply(false);
+      onResolved?.();  // triggers fetchAnnotations in parent to reload with new reply
     } catch {}
     finally { setLoading(false); }
   };
@@ -34,10 +38,10 @@ function AnnotationItem({ annotation, onResolved }) {
   };
 
   return (
-    <div className={`rounded-lg border p-3 ${annotation.resolved ? 'opacity-60 border-gray-100' : 'border-gray-200'}`}>
+    <div className={`rounded-lg border p-3 ${annotation.resolved ? 'opacity-60 border-gray-100' : 'border-gray-200 bg-white'}`}>
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs font-medium text-gray-700">{annotation.author_email ?? annotation.author_name ?? 'User'}</span>
+          <span className="text-xs font-semibold text-gray-800">{displayName(annotation)}</span>
           <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full capitalize ${TYPE_STYLES[annotation.type] ?? TYPE_STYLES.comment}`}>
             {annotation.type}
           </span>
@@ -50,28 +54,34 @@ function AnnotationItem({ annotation, onResolved }) {
 
       <p className="mt-2 text-sm text-gray-700">{annotation.content}</p>
 
-      {annotation.replies?.map((r) => (
-        <div key={r.id} className="mt-2 ml-4 pl-3 border-l-2 border-gray-200">
-          <p className="text-xs text-gray-500 mb-0.5">{r.author_email ?? 'User'}</p>
-          <p className="text-sm text-gray-700">{r.content}</p>
+      {/* Replies */}
+      {annotation.replies?.length > 0 && (
+        <div className="mt-2 space-y-2">
+          {annotation.replies.map((r) => (
+            <div key={r.id} className="ml-4 pl-3 border-l-2 border-gray-200">
+              <span className="text-xs font-semibold text-gray-600">{displayName(r)}</span>
+              <span className="ml-1.5 text-xs text-gray-400">{new Date(r.created_at).toLocaleDateString()}</span>
+              <p className="text-sm text-gray-700 mt-0.5">{r.content}</p>
+            </div>
+          ))}
         </div>
-      ))}
+      )}
 
       {!annotation.resolved && (
-        <div className="mt-3 flex items-center gap-2">
+        <div className="mt-3 flex items-center gap-3">
           <button
             onClick={() => setShowReply((v) => !v)}
             className="text-xs text-blue-600 hover:text-blue-800"
           >
-            Reply
+            {showReply ? 'Cancel' : 'Reply'}
           </button>
           {annotation.type === 'disputed' && (
             <button
               onClick={handleResolve}
               disabled={loading}
-              className="text-xs text-green-600 hover:text-green-800"
+              className="text-xs text-green-700 hover:text-green-900 font-medium"
             >
-              Resolve
+              {loading ? '…' : 'Mark resolved'}
             </button>
           )}
         </div>
@@ -84,14 +94,15 @@ function AnnotationItem({ annotation, onResolved }) {
             value={replyText}
             onChange={(e) => setReplyText(e.target.value)}
             placeholder="Write a reply…"
+            autoFocus
             className="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || !replyText.trim()}
             className="px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg disabled:opacity-60"
           >
-            Send
+            {loading ? '…' : 'Send'}
           </button>
         </form>
       )}
@@ -101,11 +112,11 @@ function AnnotationItem({ annotation, onResolved }) {
 
 export default function AnnotationThread({ annotations = [], onResolved }) {
   if (annotations.length === 0) {
-    return <p className="text-sm text-gray-400 py-2">No annotations.</p>;
+    return <p className="text-sm text-gray-400 py-1">No annotations yet.</p>;
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       {annotations.map((a) => (
         <AnnotationItem key={a.id} annotation={a} onResolved={onResolved} />
       ))}

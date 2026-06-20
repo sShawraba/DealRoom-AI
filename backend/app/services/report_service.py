@@ -53,18 +53,17 @@ async def run_full_analysis_pipeline(
 
         risk = None
         try:
-            import app.ml.classifier as ml_module
-            classifier = getattr(ml_module, "risk_classifier", None)
-            if classifier is not None:
-                risk = await classifier.predict_cached(ratios)
-                await report_repo.update(
-                    report_id,
-                    risk_score=risk.risk_score,
-                    risk_tier=risk.risk_tier,
-                    risk_shap_factors=[f.model_dump() for f in risk.contributing_factors],
-                )
-                await session.commit()
-                await pub(AnalysisEvent.ML_SCORED, risk_tier=risk.risk_tier, risk_score=risk.risk_score)
+            from app.ml.classifier import get_risk_classifier
+            classifier = await get_risk_classifier()
+            risk = await classifier.predict_cached(ratios)
+            await report_repo.update(
+                report_id,
+                risk_score=risk.risk_score,
+                risk_tier=risk.risk_tier,
+                risk_shap_factors=[f.model_dump() for f in risk.contributing_factors],
+            )
+            await session.commit()
+            await pub(AnalysisEvent.ML_SCORED, risk_tier=risk.risk_tier, risk_score=risk.risk_score)
         except Exception as exc:
             log.warning("pipeline.ml_skipped", error=str(exc))
 

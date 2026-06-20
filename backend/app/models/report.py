@@ -6,7 +6,7 @@ from datetime import datetime
 
 import sqlalchemy as sa
 from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy.dialects.postgresql import ENUM as PgEnum
+from sqlalchemy.dialects.postgresql import ENUM as PgEnum, JSONB
 
 from app.core.database import Base
 from app.models.base import TimestampMixin
@@ -77,7 +77,7 @@ class ReportItem(Base):
     )
     section_type: Mapped[str] = mapped_column(section_type_enum, nullable=False)
     content: Mapped[str] = mapped_column(sa.Text, nullable=False)
-    citation: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True)
+    citation: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     is_verified: Mapped[bool] = mapped_column(
         sa.Boolean, nullable=False, server_default="true"
     )

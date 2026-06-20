@@ -1,8 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { jsPDF } from 'jspdf';
 import * as reportsApi from '../api/reports';
 import * as annotationsApi from '../api/annotations';
 import * as managementQAApi from '../api/managementQA';
+import * as dealRoomsApi from '../api/dealRooms';
 import useAuthStore from '../store/authStore';
 import usePolling from '../hooks/usePolling';
 import Topbar from '../components/layout/Topbar';
@@ -10,7 +12,14 @@ import RiskScoreCard from '../components/report/RiskScoreCard';
 import ReportSection from '../components/report/ReportSection';
 import ApprovalBar from '../components/report/ApprovalBar';
 import CitationPanel from '../components/report/CitationPanel';
-import AnnotationThread from '../components/annotations/AnnotationThread';
+
+const errMsg = (err, fallback) => {
+  const d = err.response?.data?.detail;
+  if (!d) return fallback;
+  if (typeof d === 'string') return d;
+  if (Array.isArray(d)) return d.map((e) => e.msg ?? JSON.stringify(e)).join(', ');
+  return fallback;
+};
 
 function Skeleton() {
   return (
@@ -27,7 +36,7 @@ function QAPanel({ dealRoomId, reportId }) {
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [emailModal, setEmailModal] = useState(false);
-  const [emailData, setEmailData] = useState({ to: '', subject: '' });
+  const [recipientEmail, setRecipientEmail] = useState('');
 
   useEffect(() => {
     managementQAApi.list(dealRoomId, reportId, { page: 1, page_size: 50 })
@@ -42,7 +51,7 @@ function QAPanel({ dealRoomId, reportId }) {
       const d = await managementQAApi.list(dealRoomId, reportId, { page: 1, page_size: 50 });
       setQuestions(d.items ?? []);
     } catch (err) {
-      alert(err.response?.data?.detail ?? 'Failed to generate Q&A.');
+      alert(errMsg(err, 'Failed to generate Q&A.'));
     } finally {
       setGenerating(false);
     }
@@ -52,10 +61,11 @@ function QAPanel({ dealRoomId, reportId }) {
     e.preventDefault();
     setLoading(true);
     try {
-      await managementQAApi.sendEmail(dealRoomId, reportId, emailData);
+      await managementQAApi.sendEmail(dealRoomId, reportId, { recipient_email: recipientEmail });
       setEmailModal(false);
+      setRecipientEmail('');
     } catch (err) {
-      alert(err.response?.data?.detail ?? 'Failed to send email.');
+      alert(errMsg(err, 'Failed to send email.'));
     } finally {
       setLoading(false);
     }
@@ -109,23 +119,14 @@ function QAPanel({ dealRoomId, reportId }) {
             </div>
             <form onSubmit={handleSendEmail} className="px-6 py-5 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">To</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Recipient email</label>
                 <input
                   type="email"
-                  value={emailData.to}
-                  onChange={(e) => setEmailData((d) => ({ ...d, to: e.target.value }))}
+                  value={recipientEmail}
+                  onChange={(e) => setRecipientEmail(e.target.value)}
                   required
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="recipient@firm.com"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
-                <input
-                  type="text"
-                  value={emailData.subject}
-                  onChange={(e) => setEmailData((d) => ({ ...d, subject: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <div className="flex justify-end gap-3 pt-2">
@@ -149,10 +150,21 @@ export default function Report() {
   const [annotations, setAnnotations] = useState({});
   const [loading, setLoading] = useState(true);
   const [activeCitation, setActiveCitation] = useState(null);
-  const [activeAnnotationItemId, setActiveAnnotationItemId] = useState(null);
-  const [newAnnotation, setNewAnnotation] = useState({ content: '', type: 'comment', itemId: null });
-  const [showAnnotationSidebar, setShowAnnotationSidebar] = useState(false);
-  const [submittingAnnotation, setSubmittingAnnotation] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [myRoomRole, setMyRoomRole] = useState(null);
+
+  const handleCancel = async () => {
+    if (!window.confirm('Cancel this report? This cannot be undone.')) return;
+    setCancelling(true);
+    try {
+      await reportsApi.cancel(roomId, reportId);
+      await fetchReport();
+    } catch {
+      alert('Failed to cancel report.');
+    } finally {
+      setCancelling(false);
+    }
+  };
 
   const fetchReport = useCallback(async () => {
     try {
@@ -172,44 +184,175 @@ export default function Report() {
     Promise.all([fetchReport(), fetchAnnotations()]).finally(() => setLoading(false));
   }, [fetchReport, fetchAnnotations]);
 
+  useEffect(() => {
+    if (!user?.id) return;
+    dealRoomsApi.listMembers(roomId)
+      .then((d) => {
+        const me = (d.items ?? []).find((m) => m.user_id === user.id);
+        setMyRoomRole(me?.role ?? null);
+      })
+      .catch(() => {});
+  }, [roomId, user?.id]);
+
+  const isInProgress = report?.status === 'generating' || report?.status === 'pending' || report?.status === null;
+  usePolling(fetchReport, 4000, isInProgress);
   usePolling(fetchAnnotations, 15000, true);
 
   const isApproved = report?.status === 'approved';
 
+  const handleExportPDF = () => {
+    const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+    const company = report?.deal_room_name ?? 'Report';
+    const date = report?.created_at ? new Date(report.created_at).toLocaleDateString() : '';
+    const pageW = doc.internal.pageSize.getWidth();
+    const marginL = 56;
+    const marginR = 56;
+    const contentW = pageW - marginL - marginR;
+    let y = 56;
+
+    const checkPage = (needed = 20) => {
+      if (y + needed > doc.internal.pageSize.getHeight() - 56) {
+        doc.addPage();
+        y = 56;
+      }
+    };
+
+    const writeWrapped = (text, fontSize, color, bold = false) => {
+      doc.setFontSize(fontSize);
+      doc.setTextColor(...color);
+      doc.setFont('helvetica', bold ? 'bold' : 'normal');
+      const lines = doc.splitTextToSize(text, contentW);
+      const lineH = fontSize * 1.45;
+      checkPage(lines.length * lineH);
+      doc.text(lines, marginL, y);
+      y += lines.length * lineH;
+    };
+
+    // Cover header
+    doc.setFillColor(26, 58, 92);
+    doc.rect(0, 0, pageW, 90, 'F');
+    doc.setFontSize(22);
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.text(company, marginL, 38);
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Due Diligence Report', marginL, 56);
+    if (date) doc.text(`Generated: ${date}`, marginL, 72);
+    y = 110;
+
+    if (report?.risk_score != null) {
+      doc.setFontSize(10);
+      doc.setTextColor(100, 100, 100);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Risk Score: ${report.risk_score}/10`, marginL, y);
+      y += 20;
+    }
+
+    for (const section of sections) {
+      y += 10;
+      checkPage(50);
+
+      // Section heading bar
+      doc.setFillColor(240, 245, 255);
+      doc.rect(marginL - 8, y - 14, contentW + 16, 22, 'F');
+      doc.setFontSize(13);
+      doc.setTextColor(26, 58, 92);
+      doc.setFont('helvetica', 'bold');
+      doc.text(section.title, marginL, y);
+      y += 18;
+
+      for (const item of section.items) {
+        const text = (item.edited_content || item.content || '').replace(/\s*\[SOURCE:[^\]]*\]/gi, '').trim();
+        if (!text) continue;
+        y += 6;
+        writeWrapped(text, 10, [40, 40, 40]);
+
+        if (item.citation?.source_name) {
+          y += 2;
+          writeWrapped(
+            `Source: ${item.citation.source_name}${item.citation.page_number ? `, p.${item.citation.page_number}` : ''}`,
+            8.5,
+            [130, 130, 130],
+          );
+        }
+        y += 4;
+      }
+    }
+
+    const filename = `${company.replace(/[^a-z0-9]/gi, '-')}-due-diligence.pdf`;
+    doc.save(filename);
+  };
+
+  const handleExportWord = () => {
+    const company = report?.deal_room_name ?? 'Report';
+    const date = report?.created_at ? new Date(report.created_at).toLocaleDateString() : '';
+    let html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="utf-8">
+<style>
+  body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; line-height: 1.5; margin: 2cm; color: #111; }
+  h1 { font-size: 18pt; color: #1a1a2e; margin-bottom: 4pt; }
+  h2 { font-size: 13pt; color: #1a3a5c; border-bottom: 1px solid #ccc; padding-bottom: 4pt; margin-top: 20pt; }
+  p { margin: 6pt 0; }
+  .meta { color: #666; font-size: 9pt; }
+  .citation { color: #888; font-size: 9pt; font-style: italic; }
+  .unverified { color: #b45309; }
+</style>
+</head><body>`;
+    html += `<h1>${company} — Due Diligence Report</h1>`;
+    html += `<p class="meta">Status: ${report?.status ?? ''} &nbsp;|&nbsp; Generated: ${date}</p>`;
+    if (report?.risk_score != null) {
+      html += `<p class="meta">Risk Score: ${report.risk_score}/10</p>`;
+    }
+
+    for (const section of sections) {
+      html += `<h2>${section.title}</h2>`;
+      for (const item of section.items) {
+        const text = (item.edited_content || item.content || '').replace(/\s*\[SOURCE:[^\]]*\]/gi, '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const cls = item.is_verified ? '' : ' class="unverified"';
+        html += `<p${cls}>${text}`;
+        if (item.edited_by_email) {
+          html += ` <span class="citation">(edited by ${item.edited_by_email})</span>`;
+        }
+        html += `</p>`;
+        if (item.citation?.source_name) {
+          html += `<p class="citation">Source: ${item.citation.source_name}${item.citation.page_number ? `, p.${item.citation.page_number}` : ''}</p>`;
+        }
+      }
+    }
+
+    html += '</body></html>';
+    const blob = new Blob(['﻿', html], { type: 'application/msword' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${(company).replace(/[^a-z0-9]/gi, '-')}-due-diligence.doc`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   const allAnnotationsList = Object.values(annotations).flat();
   const disputedCount = allAnnotationsList.filter((a) => a.type === 'disputed' && !a.resolved).length;
 
-  const sections = report?.sections ?? [];
-
-  const handleAnnotationClick = (itemId) => {
-    setActiveAnnotationItemId(itemId);
-    setShowAnnotationSidebar(true);
-  };
-
-  const handleAddAnnotation = (section) => {
-    const firstItemId = section.items?.[0]?.id;
-    setNewAnnotation({ content: '', type: 'comment', itemId: firstItemId });
-    setShowAnnotationSidebar(true);
-  };
-
-  const handleSubmitAnnotation = async (e) => {
-    e.preventDefault();
-    if (!newAnnotation.content.trim() || !newAnnotation.itemId) return;
-    setSubmittingAnnotation(true);
-    try {
-      await annotationsApi.create(roomId, {
-        report_item_id: newAnnotation.itemId,
-        content: newAnnotation.content,
-        type: newAnnotation.type,
-      });
-      setNewAnnotation({ content: '', type: 'comment', itemId: newAnnotation.itemId });
-      await fetchAnnotations();
-    } catch (err) {
-      alert(err.response?.data?.detail ?? 'Failed to post annotation.');
-    } finally {
-      setSubmittingAnnotation(false);
+  const sections = useMemo(() => {
+    if (!report?.items?.length) return [];
+    const order = ['executive_summary', 'financial_health', 'commercial_assessment', 'legal_flags', 'red_flags', 'key_questions'];
+    const grouped = {};
+    for (const item of report.items) {
+      const key = item.section_type;
+      if (!grouped[key]) {
+        grouped[key] = {
+          section_key: key,
+          title: key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
+          items: [],
+        };
+      }
+      grouped[key].items.push(item);
     }
-  };
+    return order.filter((k) => grouped[k]).map((k) => grouped[k]);
+  }, [report?.items]);
 
   if (loading) {
     return (
@@ -219,8 +362,6 @@ export default function Report() {
       </>
     );
   }
-
-  const activeAnnotations = activeAnnotationItemId ? (annotations[activeAnnotationItemId] ?? []) : [];
 
   return (
     <>
@@ -254,97 +395,66 @@ export default function Report() {
           </nav>
         </aside>
 
-        {/* Centre: report content */}
-        <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4">
-          {/* Approval bar */}
+        {/* Centre: report content + sticky approval bar */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4 pb-6">
+            {/* Risk score card */}
+            {report?.risk_score != null && (
+              <RiskScoreCard report={report} />
+            )}
+
+            {/* Report sections */}
+            {sections.length === 0 ? (
+              <div className="bg-white rounded-xl border border-gray-200 p-8 text-center text-gray-400">
+                <p className="text-2xl mb-2">📊</p>
+                <p className="text-sm">
+                  {report?.status === 'failed'
+                    ? `Failed: ${report.error_message ?? 'Unknown error'}`
+                    : 'Report is still being generated…'}
+                </p>
+                {(report?.status === 'pending' || report?.status === 'running') && (
+                  <button
+                    onClick={handleCancel}
+                    disabled={cancelling}
+                    className="mt-4 text-xs px-3 py-1.5 text-red-600 border border-red-300 rounded-lg hover:bg-red-50 disabled:opacity-50 transition-colors"
+                  >
+                    {cancelling ? 'Cancelling…' : 'Cancel report'}
+                  </button>
+                )}
+              </div>
+            ) : (
+              sections.map((section) => (
+                <ReportSection
+                  key={section.id ?? section.section_key}
+                  section={section}
+                  dealRoomId={roomId}
+                  reportId={reportId}
+                  annotationsByItem={annotations}
+                  isApproved={isApproved}
+                  onCitationClick={setActiveCitation}
+                  onRefreshAnnotations={fetchAnnotations}
+                  onItemSaved={fetchReport}
+                />
+              ))
+            )}
+
+            {/* Q&A Panel */}
+            <div className="bg-white rounded-xl border border-gray-200 p-5">
+              <QAPanel dealRoomId={roomId} reportId={reportId} />
+            </div>
+          </div>
+
+          {/* Sticky approval bar */}
           <ApprovalBar
             report={report}
             dealRoomId={roomId}
-            userRole={user?.role}
+            userRole={myRoomRole}
             disputedCount={disputedCount}
             onStatusChange={fetchReport}
+            onExportPDF={handleExportPDF}
+            onExportWord={handleExportWord}
           />
-
-          {/* Risk score card */}
-          {report?.risk_score != null && (
-            <RiskScoreCard report={report} />
-          )}
-
-          {/* Report sections */}
-          {sections.length === 0 ? (
-            <div className="bg-white rounded-xl border border-gray-200 p-8 text-center text-gray-400">
-              <p className="text-2xl mb-2">📊</p>
-              <p className="text-sm">Report is still being generated…</p>
-            </div>
-          ) : (
-            sections.map((section) => (
-              <ReportSection
-                key={section.id ?? section.section_key}
-                section={section}
-                dealRoomId={roomId}
-                reportId={reportId}
-                annotationsByItem={annotations}
-                isApproved={isApproved}
-                onCitationClick={setActiveCitation}
-                onAnnotationClick={handleAnnotationClick}
-                onAddAnnotation={handleAddAnnotation}
-              />
-            ))
-          )}
-
-          {/* Q&A Panel */}
-          <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <QAPanel dealRoomId={roomId} reportId={reportId} />
-          </div>
         </div>
-
-        {/* Right: annotation sidebar */}
-        <aside className="w-72 shrink-0 border-l border-gray-200 bg-white overflow-y-auto py-4 px-4 hidden xl:flex xl:flex-col gap-4">
-          <div className="flex items-center justify-between">
-            <p className="text-xs text-gray-400 uppercase tracking-wider font-medium">Annotations</p>
-            {disputedCount > 0 && (
-              <span className="text-xs font-medium text-red-600">{disputedCount} disputed</span>
-            )}
-          </div>
-
-          {/* New annotation form */}
-          {!isApproved && (
-            <form onSubmit={handleSubmitAnnotation} className="space-y-2">
-              <select
-                value={newAnnotation.type}
-                onChange={(e) => setNewAnnotation((a) => ({ ...a, type: e.target.value }))}
-                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="comment">Comment</option>
-                <option value="verified">Verified</option>
-                <option value="disputed">Disputed</option>
-              </select>
-              <textarea
-                value={newAnnotation.content}
-                onChange={(e) => setNewAnnotation((a) => ({ ...a, content: e.target.value }))}
-                placeholder={activeAnnotationItemId ? 'Write annotation…' : 'Select a section item first'}
-                disabled={!newAnnotation.itemId}
-                rows={3}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-              />
-              <button
-                type="submit"
-                disabled={submittingAnnotation || !newAnnotation.itemId || !newAnnotation.content.trim()}
-                className="w-full py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-xs rounded-lg transition-colors"
-              >
-                {submittingAnnotation ? 'Posting…' : 'Post annotation'}
-              </button>
-            </form>
-          )}
-
-          {activeAnnotations.length > 0 ? (
-            <AnnotationThread annotations={activeAnnotations} onResolved={fetchAnnotations} />
-          ) : (
-            <p className="text-xs text-gray-400 italic">
-              {activeAnnotationItemId ? 'No annotations on this item.' : 'Click a section to see annotations.'}
-            </p>
-          )}
-        </aside>
       </main>
 
       {activeCitation && (

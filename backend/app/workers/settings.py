@@ -1,3 +1,23 @@
+import sys
+
+# Patch pydantic v1's ForwardRef resolver for Python 3.12+.
+# In 3.12, ForwardRef._evaluate() requires recursive_guard as a keyword argument.
+# langsmith still ships pydantic v1 schemas (List[Run]), which crash at import time
+# of langchain_openai unless we fix this first.
+if sys.version_info >= (3, 12):
+    try:
+        import typing as _typing
+        from pydantic import v1 as _pydantic_v1
+
+        _orig_evaluate = getattr(_pydantic_v1.typing, "evaluate_forwardref", None)
+
+        def _patched_evaluate_forwardref(type_: _typing.ForwardRef, globalns, localns):
+            return type_._evaluate(globalns, localns, recursive_guard=frozenset())
+
+        _pydantic_v1.typing.evaluate_forwardref = _patched_evaluate_forwardref
+    except Exception:
+        pass
+
 import structlog
 from arq.connections import RedisSettings
 

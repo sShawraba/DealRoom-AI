@@ -40,7 +40,7 @@ async def synthesize_section(
     schema = SectionOutput.model_json_schema()
 
     resp = await client.chat.completions.create(
-        model=settings.LLM_MODEL,
+        model=settings.CHEAP_MODEL,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
             {

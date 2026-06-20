@@ -5,7 +5,7 @@ from uuid import UUID
 import structlog
 from fastapi import APIRouter, HTTPException, Query, Request, status
 from fastapi.responses import JSONResponse
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.core.audit import AuditAction, log_event
 from app.core.config import settings
@@ -45,9 +45,43 @@ async def list_deal_rooms(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
 ):
+    from app.models.document import Document
+
     repo = _repo(session, current_user)
     items, total = await repo.list_all(page=page, page_size=page_size)
-    return PaginatedResponse(items=items, total=total, page=page, page_size=page_size)
+
+    # Batch-count documents per deal room in one query
+    room_ids = [r.id for r in items]
+    doc_counts: dict = {}
+    if room_ids:
+        rows = (await session.execute(
+            select(Document.deal_room_id, func.count(Document.id).label("cnt"))
+            .where(
+                Document.deal_room_id.in_(room_ids),
+                Document.tenant_id == current_user.tenant_id,
+            )
+            .group_by(Document.deal_room_id)
+        )).all()
+        doc_counts = {r.deal_room_id: r.cnt for r in rows}
+
+    enriched = [
+        DealRoomResponse(
+            id=r.id,
+            tenant_id=r.tenant_id,
+            created_by=r.created_by,
+            name=r.name,
+            target_company=r.target_company,
+            description=r.description,
+            status=r.status,
+            risk_tier=r.risk_tier,
+            risk_score=r.risk_score,
+            document_count=doc_counts.get(r.id, 0),
+            created_at=r.created_at,
+            updated_at=r.updated_at,
+        )
+        for r in items
+    ]
+    return PaginatedResponse(items=enriched, total=total, page=page, page_size=page_size)
 
 
 @router.post("", response_model=DealRoomResponse, status_code=status.HTTP_201_CREATED)

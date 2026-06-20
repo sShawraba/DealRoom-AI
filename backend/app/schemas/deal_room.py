@@ -29,6 +29,7 @@ class DealRoomResponse(BaseModel):
     status: str
     risk_tier: str | None
     risk_score: float | None
+    document_count: int = 0
     created_at: datetime
     updated_at: datetime
 

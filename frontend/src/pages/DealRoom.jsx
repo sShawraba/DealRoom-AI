@@ -49,6 +49,16 @@ export default function DealRoom() {
     } catch {}
   };
 
+  const handleRoleChange = async (userId, role) => {
+    try {
+      await dealRoomsApiStatic.updateMember(roomId, userId, { role });
+      refetch();
+    } catch (err) {
+      const d = err.response?.data?.detail;
+      alert(typeof d === 'string' ? d : 'Failed to update role.');
+    }
+  };
+
   const handleTriggerAnalysis = async () => {
     setTriggering(true);
     try {
@@ -143,7 +153,12 @@ export default function DealRoom() {
                 </button>
               )}
             </div>
-            <MemberList members={members} onRemove={isRoomOwner ? handleRemoveMember : null} currentUserId={user?.id} />
+            <MemberList
+  members={members}
+  onRemove={isRoomOwner ? handleRemoveMember : null}
+  onRoleChange={isRoomOwner ? handleRoleChange : null}
+  currentUserId={user?.id}
+/>
           </div>
         </div>
       </main>
@@ -159,34 +174,99 @@ export default function DealRoom() {
   );
 }
 
+const PAGE_SIZE = 5;
+
 function ReportsList({ roomId }) {
   const [reports, setReports] = useState(null);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [cancelling, setCancelling] = useState(null);
 
-  useEffect(() => {
-    reportsApi.list(roomId, { page: 1, page_size: 5 }).then((d) => setReports(d.items ?? [])).catch(() => setReports([]));
-  }, [roomId]);
+  const load = (p) =>
+    reportsApi
+      .list(roomId, { page: p, page_size: PAGE_SIZE })
+      .then((d) => { setReports(d.items ?? []); setTotal(d.total ?? 0); })
+      .catch(() => { setReports([]); setTotal(0); });
+
+  useEffect(() => { load(1); setPage(1); }, [roomId]);
+
+  const handleCancel = async (e, reportId) => {
+    e.preventDefault();
+    if (!window.confirm('Cancel this report? This cannot be undone.')) return;
+    setCancelling(reportId);
+    try {
+      await reportsApi.cancel(roomId, reportId);
+      await load(page);
+    } catch {
+      alert('Failed to cancel report.');
+    } finally {
+      setCancelling(null);
+    }
+  };
+
+  const handlePage = (next) => { setPage(next); load(next); };
 
   if (!reports) return null;
-  if (reports.length === 0) return null;
+  if (reports.length === 0 && page === 1) return null;
+
+  const totalPages = Math.ceil(total / PAGE_SIZE);
+
+  const STATUS_COLORS = {
+    pending: 'text-yellow-600',
+    running: 'text-blue-600',
+    draft: 'text-gray-500',
+    failed: 'text-red-500',
+    in_review: 'text-purple-600',
+    approved: 'text-green-600',
+  };
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-5">
-      <h2 className="font-semibold text-gray-900 mb-3">Analysis Reports</h2>
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="font-semibold text-gray-900">Analysis Reports</h2>
+        <span className="text-xs text-gray-400">{total} total</span>
+      </div>
       <div className="space-y-2">
         {reports.map((r) => (
-          <Link
-            key={r.id}
-            to={`/deal-rooms/${roomId}/reports/${r.id}`}
-            className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0 hover:text-blue-600 transition-colors"
-          >
-            <div>
+          <div key={r.id} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
+            <Link
+              to={`/deal-rooms/${roomId}/reports/${r.id}`}
+              className="flex-1 hover:text-blue-600 transition-colors"
+            >
               <p className="text-sm font-medium text-gray-800">{new Date(r.created_at).toLocaleString()}</p>
-              <p className="text-xs text-gray-400 capitalize">{r.status}</p>
-            </div>
-            <span className="text-gray-400">→</span>
-          </Link>
+              <p className={`text-xs capitalize ${STATUS_COLORS[r.status] ?? 'text-gray-400'}`}>{r.status}</p>
+            </Link>
+            {(r.status === 'pending' || r.status === 'running') && (
+              <button
+                onClick={(e) => handleCancel(e, r.id)}
+                disabled={cancelling === r.id}
+                className="ml-3 text-xs px-2 py-1 text-red-600 border border-red-200 rounded hover:bg-red-50 disabled:opacity-50 transition-colors"
+              >
+                {cancelling === r.id ? '…' : 'Cancel'}
+              </button>
+            )}
+          </div>
         ))}
       </div>
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+          <button
+            onClick={() => handlePage(page - 1)}
+            disabled={page === 1}
+            className="text-xs px-3 py-1.5 border border-gray-300 rounded-lg disabled:opacity-40 hover:bg-gray-50 transition-colors"
+          >
+            ← Prev
+          </button>
+          <span className="text-xs text-gray-500">Page {page} of {totalPages}</span>
+          <button
+            onClick={() => handlePage(page + 1)}
+            disabled={page === totalPages}
+            className="text-xs px-3 py-1.5 border border-gray-300 rounded-lg disabled:opacity-40 hover:bg-gray-50 transition-colors"
+          >
+            Next →
+          </button>
+        </div>
+      )}
     </div>
   );
 }

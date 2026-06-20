@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from email.message import EmailMessage
 
 import aiosmtplib
 
@@ -41,19 +42,16 @@ async def send_qa_email(
     from_addr: str | None = None,
 ) -> datetime:
     """Format Q&A questions and send via aiosmtplib. Returns sent timestamp."""
-    sender = from_addr or getattr(settings, "smtp_user", "noreply@dealroom.ai")
+    sender = from_addr or settings.smtp_user or "noreply@dealroom.ai"
     body = _format_email_body(deal_room_name, questions)
 
-    message = (
-        f"From: {sender}\r\n"
-        f"To: {to}\r\n"
-        f"Subject: Management Q&A — {deal_room_name}\r\n"
-        f"Content-Type: text/plain; charset=utf-8\r\n"
-        f"\r\n"
-        f"{body}"
-    )
+    msg = EmailMessage()
+    msg["From"] = sender
+    msg["To"] = to
+    msg["Subject"] = f"Management Q&A - {deal_room_name}"
+    msg.set_content(body)
 
-    await aiosmtplib.send(message, sender=sender, recipients=[to], **_smtp_kwargs())
+    await aiosmtplib.send(msg, **_smtp_kwargs())
     return datetime.now(timezone.utc)
 
 
@@ -81,7 +79,7 @@ async def send_invite_email(
     accept_url: str,
 ) -> None:
     """Send a deal-room invitation email with a one-click accept link."""
-    sender = getattr(settings, "smtp_user", "") or "noreply@dealroom.ai"
+    sender = settings.smtp_user or "noreply@dealroom.ai"
 
     if deal_room_name:
         subject = f"You've been invited to join {deal_room_name} on DealRoom AI"
@@ -106,12 +104,9 @@ async def send_invite_email(
         ]
 
     body = "\n".join(body_lines)
-    message = (
-        f"From: {sender}\r\n"
-        f"To: {to}\r\n"
-        f"Subject: {subject}\r\n"
-        f"Content-Type: text/plain; charset=utf-8\r\n"
-        f"\r\n"
-        f"{body}"
-    )
-    await aiosmtplib.send(message, sender=sender, recipients=[to], **_smtp_kwargs())
+    msg = EmailMessage()
+    msg["From"] = sender
+    msg["To"] = to
+    msg["Subject"] = subject
+    msg.set_content(body)
+    await aiosmtplib.send(msg, **_smtp_kwargs())

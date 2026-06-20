@@ -24,7 +24,23 @@ _PGVECTOR_QUERY = text("""
       AND dc.chunk_level  = 'child'
       AND dp.can_view     = TRUE
       AND (dp.user_id = :user_id OR dp.role = :user_role)
-      AND (:doc_types IS NULL OR d.doc_type = ANY(:doc_types))
+    ORDER BY dc.embedding <=> cast(:emb AS vector)
+    LIMIT 10
+""")
+
+_PGVECTOR_QUERY_FILTERED = text("""
+    SELECT dc.id, dc.content, dc.page_number, dc.chunk_level,
+           dc.parent_chunk_id, dc.section_header, d.filename, d.doc_type,
+           1 - (dc.embedding <=> cast(:emb AS vector)) AS similarity
+    FROM document_chunks dc
+    JOIN documents d ON d.id = dc.document_id
+    JOIN document_permissions dp ON dp.document_id = d.id
+    WHERE dc.tenant_id    = :tenant_id
+      AND dc.deal_room_id = :deal_room_id
+      AND dc.chunk_level  = 'child'
+      AND dp.can_view     = TRUE
+      AND (dp.user_id = :user_id OR dp.role = :user_role)
+      AND d.doc_type = ANY(:doc_types)
     ORDER BY dc.embedding <=> cast(:emb AS vector)
     LIMIT 10
 """)
@@ -100,19 +116,20 @@ async def _run_pgvector(
     doc_types: list[str] | None,
     session: AsyncSession,
 ) -> list[dict]:
-    import json as _json
     emb_str = "[" + ",".join(str(v) for v in emb) + "]"
-    rows = await session.execute(
-        _PGVECTOR_QUERY,
-        {
-            "emb": emb_str,
-            "tenant_id": str(tenant_id),
-            "deal_room_id": str(deal_room_id),
-            "user_id": str(user_id),
-            "user_role": user_role,
-            "doc_types": doc_types,
-        },
-    )
+    base_params = {
+        "emb": emb_str,
+        "tenant_id": str(tenant_id),
+        "deal_room_id": str(deal_room_id),
+        "user_id": str(user_id),
+        "user_role": user_role,
+    }
+    if doc_types:
+        query = _PGVECTOR_QUERY_FILTERED
+        base_params["doc_types"] = doc_types
+    else:
+        query = _PGVECTOR_QUERY
+    rows = await session.execute(query, base_params)
     return [dict(row._mapping) for row in rows]
 
 

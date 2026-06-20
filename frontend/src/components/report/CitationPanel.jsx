@@ -12,7 +12,7 @@ export default function CitationPanel({ citation, onClose }) {
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
           <div>
             <p className="text-xs text-gray-400 uppercase tracking-wide font-medium mb-1">Document</p>
-            <p className="text-sm text-gray-700">{citation.document_name ?? citation.source ?? '—'}</p>
+            <p className="text-sm text-gray-700">{citation.document_name ?? citation.source_name ?? citation.source ?? citation.filename ?? '—'}</p>
           </div>
 
           {citation.page_number != null && (
