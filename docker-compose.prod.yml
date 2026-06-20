@@ -63,6 +63,13 @@ services:
         limits:
           memory: 256m
 
+  mailhog:
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 64m
+
 volumes:
   db_data:
   redis_data:
