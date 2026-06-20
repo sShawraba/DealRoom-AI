@@ -30,6 +30,7 @@ class DealRoomResponse(BaseModel):
     risk_tier: str | None
     risk_score: float | None
     document_count: int = 0
+    unresolved_annotations: int = 0
     created_at: datetime
     updated_at: datetime
 

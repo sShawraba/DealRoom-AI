@@ -236,4 +236,5 @@ def _guess_content_type(filename: str) -> str:
         "pdf": "application/pdf",
         "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "csv": "text/csv",
     }.get(ext, "application/octet-stream")

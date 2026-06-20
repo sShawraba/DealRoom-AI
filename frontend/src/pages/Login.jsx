@@ -13,7 +13,6 @@ const C = {
   gold:      '#D4A84B',
 };
 
-// Icon mark only — the split-page document from the logo, no wordmark
 function PageIcon({ size = 60 }) {
   const h = Math.round(size * 200 / 160);
   return (
@@ -81,14 +80,12 @@ export default function Login() {
       fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
     }}>
 
-      {/* Back link */}
       <div style={{ width: '100%', maxWidth: 440, marginBottom: 20 }}>
         <Link to="/" style={{ color: C.taupe, fontSize: 13, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
           ← Back to home
         </Link>
       </div>
 
-      {/* Card */}
       <div style={{
         width: '100%', maxWidth: 440,
         background: C.cream,
@@ -97,7 +94,6 @@ export default function Login() {
         boxShadow: '0 8px 40px rgba(20,33,26,0.09)',
         overflow: 'hidden',
       }}>
-        {/* Icon-only header — no wordmark text */}
         <div style={{
           padding: '32px 36px 24px',
           borderBottom: `1px solid ${C.creamDark}`,
@@ -109,7 +105,6 @@ export default function Login() {
           <div style={{ width: 100, height: 1, background: C.gold, marginTop: 18 }} />
         </div>
 
-        {/* Form area */}
         <div style={{ padding: '30px 36px 36px' }}>
           <h1 style={{ fontSize: 20, fontWeight: 700, color: C.ink, letterSpacing: -0.4, marginBottom: 4 }}>
             Welcome back

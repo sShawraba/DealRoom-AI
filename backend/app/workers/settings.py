@@ -60,6 +60,16 @@ async def startup(ctx: dict) -> None:
     init_db(settings.database_url)
     init_redis(settings.redis_url)
     init_minio()
+
+    from pathlib import Path
+    from app.ml import classifier as ml_module
+    if Path(settings.ML_MODEL_PATH).exists():
+        try:
+            ml_module.risk_classifier = ml_module.RiskClassifier()
+            log.info("ml.model_loaded", path=settings.ML_MODEL_PATH)
+        except Exception as exc:
+            log.warning("ml.model_load_failed", error=str(exc))
+
     log.info("worker.startup_complete")
 
 

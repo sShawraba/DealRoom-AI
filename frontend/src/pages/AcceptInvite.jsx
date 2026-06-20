@@ -7,7 +7,7 @@ export default function AcceptInvite() {
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token');
   const navigate = useNavigate();
-  const setAuth = useAuthStore((s) => s.setAuth);
+  const { setAuth, logout, user: currentUser, token: currentToken } = useAuthStore();
 
   const [invite, setInvite] = useState(null);
   const [loadError, setLoadError] = useState('');
@@ -45,6 +45,36 @@ export default function AcceptInvite() {
       setSubmitting(false);
     }
   };
+
+  if (currentToken) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+        <div className="w-full max-w-md">
+          <div className="text-center mb-8">
+            <h1 className="text-3xl font-bold text-gray-900">DealRoom AI</h1>
+          </div>
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center space-y-4">
+            <p className="text-gray-700 text-sm">
+              You are currently signed in as <span className="font-semibold">{currentUser?.email}</span>.
+              You must sign out before accepting an invitation as a different user.
+            </p>
+            <button
+              onClick={() => { logout(); }}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-lg text-sm transition-colors"
+            >
+              Sign out and continue
+            </button>
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="w-full border border-gray-300 text-gray-700 font-medium py-2.5 rounded-lg text-sm hover:bg-gray-50 transition-colors"
+            >
+              Go back to dashboard
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">

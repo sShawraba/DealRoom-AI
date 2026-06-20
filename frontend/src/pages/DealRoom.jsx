@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import useDealRoom from '../hooks/useDealRoom';
 import useAuthStore from '../store/authStore';
 import Topbar from '../components/layout/Topbar';
@@ -24,9 +24,11 @@ function Skeleton() {
 export default function DealRoom() {
   const { roomId } = useParams();
   const { user } = useAuthStore();
+  const navigate = useNavigate();
   const { dealRoom, documents, members, loading, refetch } = useDealRoom(roomId);
   const [showInvite, setShowInvite] = useState(false);
   const [triggering, setTriggering] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const myMember = members.find((m) => m.user_id === user?.id);
   const myRoomRole = myMember?.role;
@@ -70,6 +72,18 @@ export default function DealRoom() {
     }
   };
 
+  const handleDeleteRoom = async () => {
+    if (!window.confirm(`Delete deal room "${dealRoom?.target_company}"? This cannot be undone.`)) return;
+    setDeleting(true);
+    try {
+      await dealRoomsApiStatic.remove(roomId);
+      navigate('/');
+    } catch (err) {
+      alert(err.response?.data?.detail ?? 'Failed to delete deal room.');
+      setDeleting(false);
+    }
+  };
+
   const hasIndexed = documents.some((d) => d.status === 'indexed');
 
   if (loading) {
@@ -99,16 +113,27 @@ export default function DealRoom() {
               <p className="mt-1 text-sm text-gray-500">{dealRoom.description}</p>
             )}
           </div>
-          {canRunAnalysis && (
-            <button
-              onClick={handleTriggerAnalysis}
-              disabled={triggering || !hasIndexed}
-              title={!hasIndexed ? 'Upload and index at least one document first' : ''}
-              className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors"
-            >
-              {triggering ? 'Starting…' : 'Run Analysis'}
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {canRunAnalysis && (
+              <button
+                onClick={handleTriggerAnalysis}
+                disabled={triggering || !hasIndexed}
+                title={!hasIndexed ? 'Upload and index at least one document first' : ''}
+                className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors"
+              >
+                {triggering ? 'Starting…' : 'Run Analysis'}
+              </button>
+            )}
+            {isRoomOwner && (
+              <button
+                onClick={handleDeleteRoom}
+                disabled={deleting}
+                className="px-4 py-2 bg-white hover:bg-red-50 disabled:opacity-50 text-red-600 border border-red-300 text-sm font-medium rounded-lg transition-colors"
+              >
+                {deleting ? 'Deleting…' : 'Delete Room'}
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Missing context panel */}

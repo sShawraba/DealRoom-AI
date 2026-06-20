@@ -1,11 +1,11 @@
 import { Link } from 'react-router-dom';
 
 const RISK_COLORS = {
-  low:      { border: 'border-green-400',  bg: 'bg-green-50',  text: 'text-green-700',  badge: 'bg-green-100' },
-  medium:   { border: 'border-yellow-400', bg: 'bg-yellow-50', text: 'text-yellow-700', badge: 'bg-yellow-100' },
-  high:     { border: 'border-orange-400', bg: 'bg-orange-50', text: 'text-orange-700', badge: 'bg-orange-100' },
-  critical: { border: 'border-red-400',    bg: 'bg-red-50',    text: 'text-red-700',    badge: 'bg-red-100' },
-  null:     { border: 'border-brand-sand',  bg: 'bg-brand-warm', text: 'text-brand-taupe', badge: 'bg-brand-sand' },
+  low:      { border: 'border-green-400',  bg: 'bg-green-50',  text: 'text-green-700',  badge: 'bg-green-100',  bar: '#22c55e' },
+  medium:   { border: 'border-yellow-400', bg: 'bg-yellow-50', text: 'text-yellow-700', badge: 'bg-yellow-100', bar: '#eab308' },
+  high:     { border: 'border-orange-400', bg: 'bg-orange-50', text: 'text-orange-700', badge: 'bg-orange-100', bar: '#f97316' },
+  critical: { border: 'border-red-400',    bg: 'bg-red-50',    text: 'text-red-700',    badge: 'bg-red-100',    bar: '#ef4444' },
+  null:     { border: 'border-brand-sand',  bg: 'bg-brand-warm', text: 'text-brand-taupe', badge: 'bg-brand-sand', bar: '#B8AF9C' },
 };
 
 export { RISK_COLORS };
@@ -29,10 +29,21 @@ export default function DealRoomCard({ room }) {
       </div>
 
       {room.risk_score != null && (
-        <p className={`mt-2 text-2xl font-bold ${colors.text}`}>
-          {room.risk_score}
-          <span className="text-xs font-normal text-brand-taupe ml-1">/ 100</span>
-        </p>
+        <>
+          <p className={`mt-2 text-2xl font-bold ${colors.text}`}>
+            {room.risk_score}
+            <span className="text-xs font-normal text-brand-taupe ml-1">/ 100</span>
+          </p>
+          <div style={{ marginTop: 8, height: 4, borderRadius: 3, background: 'rgba(0,0,0,0.08)', overflow: 'hidden' }}>
+            <div style={{
+              height: '100%',
+              width: `${room.risk_score}%`,
+              borderRadius: 3,
+              background: colors.bar,
+              transition: 'width 0.8s ease',
+            }} />
+          </div>
+        </>
       )}
 
       <div className="mt-3 flex items-center gap-4 text-xs text-brand-taupe">

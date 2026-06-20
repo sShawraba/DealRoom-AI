@@ -102,7 +102,7 @@ async def run_ingestion(
     import os
 
     from app.core.minio import get_minio
-    from app.agents.ingestion.tools import parse_pdf, classify_document_type
+    from app.agents.ingestion.tools import parse_pdf, parse_csv, classify_document_type
     from app.agents.ingestion.chunker import chunk_document
 
     doc_repo = DocumentRepository(session, tenant_id=tenant_id, user_id=UUID(int=0))
@@ -130,7 +130,11 @@ async def run_ingestion(
 
         try:
             # 4. Parse (CPU-bound → thread)
-            parsed = await asyncio.to_thread(parse_pdf, tmp_path)
+            ext = doc.filename.rsplit(".", 1)[-1].lower() if "." in doc.filename else ""
+            if ext == "csv":
+                parsed = await asyncio.to_thread(parse_csv, tmp_path)
+            else:
+                parsed = await asyncio.to_thread(parse_pdf, tmp_path)
         finally:
             os.unlink(tmp_path)
 

@@ -1,9 +1,11 @@
-"""Ingestion tools: PDF parsing and document-type classification."""
+"""Ingestion tools: PDF parsing, CSV parsing, and document-type classification."""
 from __future__ import annotations
 
 import structlog
 
 log = structlog.get_logger(__name__)
+
+_CSV_ROWS_PER_TABLE = 100
 
 
 def parse_pdf(file_path: str) -> dict:
@@ -43,6 +45,42 @@ def parse_pdf(file_path: str) -> dict:
 
     log.info("pdf.parsed", file_path=file_path, page_count=len(pages))
     return {"pages": pages, "page_count": len(pages)}
+
+
+def parse_csv(file_path: str) -> dict:
+    """
+    Parse a CSV file and return the same structure as parse_pdf.
+
+    Large CSVs are split into table chunks of _CSV_ROWS_PER_TABLE rows each.
+    A pipe-delimited text preview is added to text_blocks so classify_document_type
+    can see enough content to classify the file correctly.
+    """
+    import csv as csv_mod
+
+    with open(file_path, newline="", encoding="utf-8-sig") as f:
+        rows = list(csv_mod.reader(f))
+
+    if not rows:
+        return {"pages": [], "page_count": 0}
+
+    headers = rows[0]
+    data_rows = rows[1:]
+
+    tables = []
+    for start in range(0, max(len(data_rows), 1), _CSV_ROWS_PER_TABLE):
+        batch = data_rows[start : start + _CSV_ROWS_PER_TABLE]
+        tables.append({"headers": headers, "rows": batch, "caption": ""})
+
+    if not tables:
+        tables = [{"headers": headers, "rows": [], "caption": ""}]
+
+    preview = "\n".join(
+        " | ".join(str(c) for c in row) for row in ([headers] + data_rows[:5])
+    )
+
+    page = {"page_number": 1, "text_blocks": [preview], "tables": tables}
+    log.info("csv.parsed", file_path=file_path, rows=len(data_rows), table_chunks=len(tables))
+    return {"pages": [page], "page_count": 1}
 
 
 async def classify_document_type(filename: str, first_500_chars: str) -> str:

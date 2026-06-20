@@ -62,6 +62,14 @@ async def run_full_analysis_pipeline(
                 risk_tier=risk.risk_tier,
                 risk_shap_factors=[f.model_dump() for f in risk.contributing_factors],
             )
+            # Write score back to the deal room so the dashboard card shows colors
+            from sqlalchemy import update as sa_update
+            from app.models.deal_room import DealRoom
+            await session.execute(
+                sa_update(DealRoom)
+                .where(DealRoom.id == deal_room_id, DealRoom.tenant_id == tenant_id)
+                .values(risk_score=risk.risk_score, risk_tier=risk.risk_tier)
+            )
             await session.commit()
             await pub(AnalysisEvent.ML_SCORED, risk_tier=risk.risk_tier, risk_score=risk.risk_score)
         except Exception as exc:

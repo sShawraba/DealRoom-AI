@@ -45,16 +45,17 @@ async def list_deal_rooms(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
 ):
+    from app.models.annotation import Annotation
     from app.models.document import Document
 
     repo = _repo(session, current_user)
     items, total = await repo.list_all(page=page, page_size=page_size)
 
-    # Batch-count documents per deal room in one query
     room_ids = [r.id for r in items]
     doc_counts: dict = {}
+    annotation_counts: dict = {}
     if room_ids:
-        rows = (await session.execute(
+        doc_rows = (await session.execute(
             select(Document.deal_room_id, func.count(Document.id).label("cnt"))
             .where(
                 Document.deal_room_id.in_(room_ids),
@@ -62,7 +63,19 @@ async def list_deal_rooms(
             )
             .group_by(Document.deal_room_id)
         )).all()
-        doc_counts = {r.deal_room_id: r.cnt for r in rows}
+        doc_counts = {r.deal_room_id: r.cnt for r in doc_rows}
+
+        ann_rows = (await session.execute(
+            select(Annotation.deal_room_id, func.count(Annotation.id).label("cnt"))
+            .where(
+                Annotation.deal_room_id.in_(room_ids),
+                Annotation.tenant_id == current_user.tenant_id,
+                Annotation.type == "disputed",
+                Annotation.resolved == False,  # noqa: E712
+            )
+            .group_by(Annotation.deal_room_id)
+        )).all()
+        annotation_counts = {r.deal_room_id: r.cnt for r in ann_rows}
 
     enriched = [
         DealRoomResponse(
@@ -76,6 +89,7 @@ async def list_deal_rooms(
             risk_tier=r.risk_tier,
             risk_score=r.risk_score,
             document_count=doc_counts.get(r.id, 0),
+            unresolved_annotations=annotation_counts.get(r.id, 0),
             created_at=r.created_at,
             updated_at=r.updated_at,
         )
